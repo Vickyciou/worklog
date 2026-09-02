@@ -53,6 +53,7 @@ Usage:
   worklog <command>
 
 Commands:
+  capture    Record a structured event for a Git commit
   help       Show help for worklog
   version    Print version information
 
@@ -76,6 +77,218 @@ Options:
 			}
 		})
 	}
+}
+
+func TestCaptureHelpDescribesLiveInputContract(t *testing.T) {
+	const expected = `Record a versioned WorklogEvent as a Git note.
+
+Usage:
+  worklog capture <repository> <commit>
+
+Input:
+  Read exactly one JSON object from stdin. Unknown fields are rejected.
+
+  {
+    "version": 1,
+    "outcome": "required non-empty string",
+    "approach": "optional non-empty string",
+    "decisions": [
+      {"decision": "non-empty string", "reason": "non-empty string"}
+    ],
+    "next_steps": ["non-empty string"],
+    "technologies": ["non-empty public technology name"],
+    "source": {"kind": "non-empty string", "name": "optional non-empty string"}
+  }
+
+  version and outcome are required. All other fields are optional. Empty arrays
+  are accepted. The canonical JSON event is stored at refs/notes/worklog.
+
+Behavior:
+  Repeating the same event succeeds without changing the note. A different event
+  for a commit that already has a note is rejected without overwriting it.
+
+Options:
+  -h, --help    Show help for capture
+`
+	for _, arguments := range [][]string{{"capture", "--help"}, {"capture", "-h"}, {"help", "capture"}} {
+		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {
+			environment := newEnvironment(t)
+			result := environment.run(t, arguments...)
+
+			if result.exitCode != 0 {
+				t.Fatalf("exit code = %d, want 0; stderr:\n%s", result.exitCode, result.stderr)
+			}
+			if result.stderr != "" {
+				t.Fatalf("stderr = %q, want empty", result.stderr)
+			}
+			if result.stdout != expected {
+				t.Fatalf("stdout mismatch\n--- got ---\n%s--- want ---\n%s", result.stdout, expected)
+			}
+		})
+	}
+}
+
+func TestCaptureWritesVersionedEventToDedicatedGitNotesRef(t *testing.T) {
+	environment := newEnvironment(t)
+	commit := environment.createCommit(t)
+	input := `{
+  "technologies": ["Go", "Git"],
+  "version": 1,
+  "source": {"name": "gen-commit", "kind": "agent"},
+  "decisions": [{"reason": "Keep provider integrations decoupled", "decision": "Use Git notes"}],
+  "outcome": "Recorded structured work facts",
+  "next_steps": ["Collect daily facts"],
+  "approach": "Validate before writing"
+}`
+
+	result := environment.runWithInput(t, input, "capture", environment.repository, commit)
+
+	if result.exitCode != 0 {
+		t.Fatalf("exit code = %d, want 0; stderr:\n%s", result.exitCode, result.stderr)
+	}
+	if result.stderr != "" {
+		t.Fatalf("stderr = %q, want empty", result.stderr)
+	}
+	if result.stdout != fmt.Sprintf("Recorded worklog event for commit %s.\n", commit) {
+		t.Fatalf("stdout = %q", result.stdout)
+	}
+
+	note := environment.git(t, "notes", "--ref=refs/notes/worklog", "show", commit)
+	if note.exitCode != 0 {
+		t.Fatalf("read Git note: %s", note.stderr)
+	}
+	const expectedNote = "{\"version\":1,\"outcome\":\"Recorded structured work facts\",\"approach\":\"Validate before writing\",\"decisions\":[{\"decision\":\"Use Git notes\",\"reason\":\"Keep provider integrations decoupled\"}],\"next_steps\":[\"Collect daily facts\"],\"technologies\":[\"Go\",\"Git\"],\"source\":{\"kind\":\"agent\",\"name\":\"gen-commit\"}}\n"
+	if note.stdout != expectedNote {
+		t.Fatalf("Git note mismatch\n--- got ---\n%s--- want ---\n%s", note.stdout, expectedNote)
+	}
+}
+
+func TestCaptureIsIdempotentForTheSameEvent(t *testing.T) {
+	environment := newEnvironment(t)
+	commit := environment.createCommit(t)
+	firstInput := `{"version":1,"outcome":"Recorded structured work facts","technologies":["Go"]}`
+	secondInput := "{\n  \"technologies\": [\"Go\"],\n  \"outcome\": \"Recorded structured work facts\",\n  \"version\": 1\n}\n"
+
+	first := environment.runWithInput(t, firstInput, "capture", environment.repository, commit)
+	if first.exitCode != 0 {
+		t.Fatalf("first capture exit code = %d; stderr:\n%s", first.exitCode, first.stderr)
+	}
+	refBefore := environment.git(t, "rev-parse", "refs/notes/worklog")
+
+	second := environment.runWithInput(t, secondInput, "capture", environment.repository, commit)
+	if second.exitCode != 0 {
+		t.Fatalf("second capture exit code = %d; stderr:\n%s", second.exitCode, second.stderr)
+	}
+	if second.stderr != "" {
+		t.Fatalf("second capture stderr = %q, want empty", second.stderr)
+	}
+	if second.stdout != fmt.Sprintf("Worklog event for commit %s is already recorded.\n", commit) {
+		t.Fatalf("second capture stdout = %q", second.stdout)
+	}
+	refAfter := environment.git(t, "rev-parse", "refs/notes/worklog")
+	if refBefore.exitCode != 0 || refAfter.exitCode != 0 || refBefore.stdout != refAfter.stdout {
+		t.Fatalf("notes ref changed on retry: before=%q after=%q", refBefore.stdout, refAfter.stdout)
+	}
+}
+
+func TestCaptureRejectsAConflictingEventAndPreservesTheOriginal(t *testing.T) {
+	environment := newEnvironment(t)
+	commit := environment.createCommit(t)
+	original := `{"version":1,"outcome":"Original outcome"}`
+	conflict := `{"version":1,"outcome":"Different outcome"}`
+
+	first := environment.runWithInput(t, original, "capture", environment.repository, commit)
+	if first.exitCode != 0 {
+		t.Fatalf("first capture exit code = %d; stderr:\n%s", first.exitCode, first.stderr)
+	}
+	noteBefore := environment.git(t, "notes", "--ref=refs/notes/worklog", "show", commit)
+	refBefore := environment.git(t, "rev-parse", "refs/notes/worklog")
+
+	second := environment.runWithInput(t, conflict, "capture", environment.repository, commit)
+	if second.exitCode == 0 {
+		t.Fatal("conflicting capture exit code = 0, want non-zero")
+	}
+	if second.stdout != "" {
+		t.Fatalf("conflicting capture stdout = %q, want empty", second.stdout)
+	}
+	assertContains(t, second.stderr, "commit already has a different worklog event")
+
+	noteAfter := environment.git(t, "notes", "--ref=refs/notes/worklog", "show", commit)
+	refAfter := environment.git(t, "rev-parse", "refs/notes/worklog")
+	if noteBefore.stdout != noteAfter.stdout || refBefore.stdout != refAfter.stdout {
+		t.Fatalf("original note changed after conflict: before=%q after=%q", noteBefore.stdout, noteAfter.stdout)
+	}
+}
+
+func TestCaptureRejectsInvalidInputWithoutWritingANote(t *testing.T) {
+	tests := []struct {
+		name          string
+		input         string
+		expectedError string
+	}{
+		{name: "missing version", input: `{"outcome":"Done"}`, expectedError: "version is required"},
+		{name: "missing outcome", input: `{"version":1}`, expectedError: "outcome is required"},
+		{name: "unsupported version", input: `{"version":2,"outcome":"Done"}`, expectedError: "version must be 1"},
+		{name: "null optional field", input: `{"version":1,"outcome":"Done","next_steps":null}`, expectedError: "next_steps must not be null"},
+		{name: "unknown field", input: `{"version":1,"outcome":"Done","detail":"raw"}`, expectedError: `unknown field "detail"`},
+		{name: "empty approach", input: `{"version":1,"outcome":"Done","approach":" "}`, expectedError: "approach must be non-empty"},
+		{name: "decision without reason", input: `{"version":1,"outcome":"Done","decisions":[{"decision":"Choose notes","reason":""}]}`, expectedError: "decisions[0].reason must be non-empty"},
+		{name: "empty next step", input: `{"version":1,"outcome":"Done","next_steps":[""]}`, expectedError: "next_steps[0] must be non-empty"},
+		{name: "empty technology", input: `{"version":1,"outcome":"Done","technologies":[" "]}`, expectedError: "technologies[0] must be non-empty"},
+		{name: "source without kind", input: `{"version":1,"outcome":"Done","source":{"kind":""}}`, expectedError: "source.kind must be non-empty"},
+		{name: "null source name", input: `{"version":1,"outcome":"Done","source":{"kind":"agent","name":null}}`, expectedError: "source.name must not be null"},
+		{name: "multiple JSON values", input: `{"version":1,"outcome":"Done"} {}`, expectedError: "expected exactly one JSON object"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			environment := newEnvironment(t)
+			commit := environment.createCommit(t)
+
+			result := environment.runWithInput(t, test.input, "capture", environment.repository, commit)
+
+			if result.exitCode == 0 {
+				t.Fatal("exit code = 0, want non-zero")
+			}
+			if result.stdout != "" {
+				t.Fatalf("stdout = %q, want empty", result.stdout)
+			}
+			assertContains(t, result.stderr, test.expectedError)
+			notesRef := environment.git(t, "show-ref", "--verify", "--quiet", "refs/notes/worklog")
+			if notesRef.exitCode == 0 {
+				t.Fatal("invalid capture created the worklog notes ref")
+			}
+		})
+	}
+}
+
+func TestCaptureRejectsMissingRepositoryOrCommitWithoutWritingANote(t *testing.T) {
+	const input = `{"version":1,"outcome":"Done"}`
+
+	t.Run("missing repository", func(t *testing.T) {
+		environment := newEnvironment(t)
+		result := environment.runWithInput(t, input, "capture", filepath.Join(environment.root, "missing"), "HEAD")
+
+		if result.exitCode == 0 {
+			t.Fatal("exit code = 0, want non-zero")
+		}
+		assertContains(t, result.stderr, "access repository")
+	})
+
+	t.Run("missing commit", func(t *testing.T) {
+		environment := newEnvironment(t)
+		environment.createCommit(t)
+		result := environment.runWithInput(t, input, "capture", environment.repository, "deadbeef")
+
+		if result.exitCode == 0 {
+			t.Fatal("exit code = 0, want non-zero")
+		}
+		assertContains(t, result.stderr, `resolve commit "deadbeef"`)
+		notesRef := environment.git(t, "show-ref", "--verify", "--quiet", "refs/notes/worklog")
+		if notesRef.exitCode == 0 {
+			t.Fatal("missing commit capture created the worklog notes ref")
+		}
+	})
 }
 
 func TestVersion(t *testing.T) {
@@ -187,11 +400,53 @@ func newEnvironment(t *testing.T) acceptanceEnvironment {
 }
 
 func (environment acceptanceEnvironment) run(t *testing.T, arguments ...string) processResult {
+	return environment.runWithInput(t, "", arguments...)
+}
+
+func (environment acceptanceEnvironment) runWithInput(t *testing.T, input string, arguments ...string) processResult {
 	t.Helper()
 
 	command := exec.Command(worklogBinary, arguments...)
 	command.Dir = environment.repository
 	command.Env = environment.environment
+	command.Stdin = strings.NewReader(input)
+	return runCommand(t, command)
+}
+
+func (environment acceptanceEnvironment) git(t *testing.T, arguments ...string) processResult {
+	t.Helper()
+
+	commandArguments := append([]string{"-C", environment.repository}, arguments...)
+	command := exec.Command("git", commandArguments...)
+	command.Env = environment.environment
+	return runCommand(t, command)
+}
+
+func (environment acceptanceEnvironment) createCommit(t *testing.T) string {
+	t.Helper()
+
+	for _, setting := range [][]string{
+		{"config", "user.name", "Worklog Acceptance"},
+		{"config", "user.email", "worklog@example.invalid"},
+	} {
+		result := environment.git(t, setting...)
+		if result.exitCode != 0 {
+			t.Fatalf("configure Git fixture: %s", result.stderr)
+		}
+	}
+	commit := environment.git(t, "commit", "--quiet", "--allow-empty", "-m", "fixture commit")
+	if commit.exitCode != 0 {
+		t.Fatalf("create Git fixture commit: %s", commit.stderr)
+	}
+	hash := environment.git(t, "rev-parse", "HEAD")
+	if hash.exitCode != 0 {
+		t.Fatalf("resolve Git fixture commit: %s", hash.stderr)
+	}
+	return strings.TrimSpace(hash.stdout)
+}
+
+func runCommand(t *testing.T, command *exec.Cmd) processResult {
+	t.Helper()
 
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
@@ -203,7 +458,7 @@ func (environment acceptanceEnvironment) run(t *testing.T, arguments ...string) 
 	if err != nil {
 		var exitError *exec.ExitError
 		if !errors.As(err, &exitError) {
-			t.Fatalf("execute worklog: %v", err)
+			t.Fatalf("execute %q: %v", command.Path, err)
 		}
 		exitCode = exitError.ExitCode()
 	}

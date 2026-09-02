@@ -1,0 +1,19 @@
+.DS_Store
+
+# Local environment and credentials
+.env
+.env.*
+!.env.example
+
+# Go build and test artifacts
+/worklog
+/bin/
+/dist/
+*.test
+*.prof
+coverage.out
+
+# Editor state
+.idea/
+.vscode/
+*.swp

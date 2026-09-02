@@ -54,6 +54,10 @@ Usage:
 
 Commands:
   capture    Record a structured event for a Git commit
+  setup      Create the first profile interactively
+  profile    Add, inspect, and validate profiles
+  author     Add, inspect, and validate author identities
+  repo       Add, inspect, and validate repository mappings
   help       Show help for worklog
   version    Print version information
 

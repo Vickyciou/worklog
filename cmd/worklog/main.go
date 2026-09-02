@@ -2,9 +2,11 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 
 	"github.com/Vickyciou/worklog/internal/capture"
+	"github.com/Vickyciou/worklog/internal/config"
 )
 
 const rootHelp = `worklog records and renders portable work journals.
@@ -14,6 +16,10 @@ Usage:
 
 Commands:
   capture    Record a structured event for a Git commit
+  setup      Create the first profile interactively
+  profile    Add, inspect, and validate profiles
+  author     Add, inspect, and validate author identities
+  repo       Add, inspect, and validate repository mappings
   help       Show help for worklog
   version    Print version information
 
@@ -60,67 +66,86 @@ func main() {
 }
 
 func run(args []string) int {
+	return runWithIO(args, os.Stdin, os.Stdout, os.Stderr)
+}
+
+func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Print(rootHelp)
+		fmt.Fprint(stdout, rootHelp)
 		return 0
 	}
 
 	switch args[0] {
 	case "help":
 		if len(args) == 2 && args[1] == "capture" {
-			fmt.Print(captureHelp)
+			fmt.Fprint(stdout, captureHelp)
 			return 0
 		}
 		if len(args) != 1 {
-			return usageError("%q does not accept arguments", args[0])
+			return usageError(stderr, "%q does not accept arguments", args[0])
 		}
-		fmt.Print(rootHelp)
+		fmt.Fprint(stdout, rootHelp)
 		return 0
 	case "-h", "--help":
 		if len(args) != 1 {
-			return usageError("%q does not accept arguments", args[0])
+			return usageError(stderr, "%q does not accept arguments", args[0])
 		}
-		fmt.Print(rootHelp)
+		fmt.Fprint(stdout, rootHelp)
 		return 0
 	case "capture":
-		return runCapture(args[1:])
+		return runCapture(args[1:], stdin, stdout, stderr)
 	case "version", "-v", "--version":
 		if len(args) != 1 {
-			return usageError("%q does not accept arguments", args[0])
+			return usageError(stderr, "%q does not accept arguments", args[0])
 		}
-		fmt.Printf("worklog %s\n", version)
+		fmt.Fprintf(stdout, "worklog %s\n", version)
+		return 0
+	case "setup", "profile", "author", "repo":
+		paths, err := config.DefaultPaths()
+		if err != nil {
+			return commandError(stderr, err)
+		}
+		application := cli{stdin: stdin, stdout: stdout, paths: paths}
+		if err := application.execute(args[0], args[1:]); err != nil {
+			return commandError(stderr, err)
+		}
 		return 0
 	default:
-		return usageError("unknown command %q", args[0])
+		return usageError(stderr, "unknown command %q", args[0])
 	}
 }
 
-func runCapture(args []string) int {
+func runCapture(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 1 && (args[0] == "-h" || args[0] == "--help") {
-		fmt.Print(captureHelp)
+		fmt.Fprint(stdout, captureHelp)
 		return 0
 	}
 	if len(args) != 2 {
-		fmt.Fprintln(os.Stderr, "worklog: capture requires <repository> and <commit>")
-		fmt.Fprintln(os.Stderr, "Run 'worklog capture --help' for usage.")
+		fmt.Fprintln(stderr, "worklog: capture requires <repository> and <commit>")
+		fmt.Fprintln(stderr, "Run 'worklog capture --help' for usage.")
 		return 2
 	}
 
-	result, err := capture.Run(args[0], args[1], os.Stdin)
+	result, err := capture.Run(args[0], args[1], stdin)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "worklog: capture failed: %v\n", err)
+		fmt.Fprintf(stderr, "worklog: capture failed: %v\n", err)
 		return 1
 	}
 	if result.Created {
-		fmt.Printf("Recorded worklog event for commit %s.\n", result.Commit)
+		fmt.Fprintf(stdout, "Recorded worklog event for commit %s.\n", result.Commit)
 	} else {
-		fmt.Printf("Worklog event for commit %s is already recorded.\n", result.Commit)
+		fmt.Fprintf(stdout, "Worklog event for commit %s is already recorded.\n", result.Commit)
 	}
 	return 0
 }
 
-func usageError(format string, args ...any) int {
-	fmt.Fprintf(os.Stderr, "worklog: "+format+"\n", args...)
-	fmt.Fprintln(os.Stderr, "Run 'worklog --help' for usage.")
+func usageError(stderr io.Writer, format string, args ...any) int {
+	fmt.Fprintf(stderr, "worklog: "+format+"\n", args...)
+	fmt.Fprintln(stderr, "Run 'worklog --help' for usage.")
 	return 2
+}
+
+func commandError(stderr io.Writer, err error) int {
+	fmt.Fprintf(stderr, "worklog: %v\n", err)
+	return 1
 }

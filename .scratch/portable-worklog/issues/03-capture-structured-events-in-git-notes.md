@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M1 — 最小可用流程
+
 - [ ] `worklog capture` 的 help 清楚描述輸入 contract，且可以為指定 repository 與 commit 接收結構化工作事實。
 - [ ] 新事件以版本化 WorklogEvent JSON 寫入專用 Git notes ref，必填 outcome，選填欄位符合規格允許的事實類型。
 - [ ] 相同事件重試時結果為 idempotent，不會產生重複內容。

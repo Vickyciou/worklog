@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M2 — 安全且完整的日常使用
+
 - [ ] Profile 可以設定禁止傳出的 literals，遮蔽規則只作用於該 profile。
 - [ ] Common secret patterns 與禁止 literals 在 adapter invocation 前完成偵測及遮蔽。
 - [ ] `worklog inspect` 顯示與 adapter stdin 完全相同的 post-redaction DailyFacts，但不呼叫 provider 或寫入 journal。

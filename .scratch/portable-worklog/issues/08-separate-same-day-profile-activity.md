@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M2 — 安全且完整的日常使用
+
 - [ ] 同一天只有一個 active profile 時，`worklog day` 維持無額外參數的簡單流程。
 - [ ] 同一天有多個 active profiles 時，自動建立各自的 DailyFacts、adapter request 與 journal output，不要求使用者記得指定 profile。
 - [ ] 任一 summarizer request 只包含單一 profile 的 facts、redaction policy 與 preferences。

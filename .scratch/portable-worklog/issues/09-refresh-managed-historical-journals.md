@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M2 — 安全且完整的日常使用
+
 - [ ] 使用者可以明確指定歷史日期進行 preview、首次生成或 refresh。
 - [ ] Generated block 包含可重現的 source digest，refresh 只替換該 managed block。
 - [ ] Managed block 外的人工內容在 refresh 後 byte-for-byte 保留。

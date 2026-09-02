@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M3 — 發布與正式遷移
+
 - [ ] Project 明確宣告第一版支援的平台與架構，release pipeline 為每個目標產生單一 executable。
 - [ ] Versioned GitHub release 提供可辨識的 artifacts、checksums 與對應 source revision。
 - [ ] Release artifacts 不包含任何 developer config、captured notes、credentials、真實 journal path 或 employer identifiers。

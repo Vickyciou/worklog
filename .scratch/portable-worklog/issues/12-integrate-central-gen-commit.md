@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M1 — 最小可用流程
+
 - [ ] Generic gen-commit integration 每次執行只讀取一次目前 CLI help，並依 live contract 建立 capture input。
 - [ ] 成功 commit 後自動記錄可由 inspected diff 與任務內容證實的工作事實，不需要使用者另外執行 note command。
 - [ ] Integration 不包含 AI provider 選擇、profile routing、employer 名稱或 company-specific workflow。

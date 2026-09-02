@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M3 — 發布與正式遷移
+
 - [ ] 使用者可明確安裝或啟用 generic post-commit integration，不會無聲修改所有 repositories。
 - [ ] 一次正常 Git commit 會自動呼叫公開 capture contract，並為新 commit 建立 WorklogEvent。
 - [ ] Fallback 只記錄 Git metadata 支持的 outcome 與 source metadata，不捏造 decisions、reasons 或 next steps。

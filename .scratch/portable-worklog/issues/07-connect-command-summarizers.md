@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M2 — 安全且完整的日常使用
+
 - [ ] Adapter 只從 stdin 接收 post-redaction DailyFacts JSON，並只從 stdout 回傳 DailySummary JSON。
 - [ ] DailySummary schema 驗證 focus、topic-grouped completed items、decisions、next steps 與 public technologies。
 - [ ] Provider 輸出無法直接提供 final Markdown 或選擇 journal destination。

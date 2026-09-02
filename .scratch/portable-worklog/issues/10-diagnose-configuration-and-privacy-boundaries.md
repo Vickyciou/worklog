@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M2 — 安全且完整的日常使用
+
 - [ ] Doctor 檢查 Git 可用性、config 與 state roots、必要 profile 欄位及 author identities。
 - [ ] Doctor 檢查 registered repositories、重疊 mappings、Git notes 可用性與 journal destination 狀態。
 - [ ] Doctor 檢查 configured summarizer command 是否可執行，但不需要真的傳送工作內容。

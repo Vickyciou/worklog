@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M1 — 最小可用流程
+
 - [ ] 無 summarizer 時會產生 deterministic DailySummary，而不是要求使用者補裝 AI provider。
 - [ ] Core deterministic render YAML frontmatter 與 Markdown，使用預設台灣繁體中文 headings 及正確的 property types。
 - [ ] Technology names 會正規化、去重並限制數量，不會把敏感識別資訊當成 tech tag。

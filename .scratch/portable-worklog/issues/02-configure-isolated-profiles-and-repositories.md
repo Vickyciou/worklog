@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M1 — 最小可用流程
+
 - [ ] 互動式 setup 可以建立包含時區、語言、journal destination 與可選 summarizer 設定的第一個 profile。
 - [ ] 使用者可以新增、檢視及驗證 profile、author identities 與明確的 repository allowlist。
 - [ ] 每個 repository 只能屬於一個 profile；重複或重疊 mapping 會停止並說明衝突。

@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M3 — 發布與正式遷移
+
 - [ ] Acceptance suite 涵蓋 setup、registration、capture、v1 compatibility、redaction、single-profile day、multi-profile separation、fallback、historical refresh 與 atomic safety。
 - [ ] 代表性 Bash 與 Go outputs 會以相同輸入比較；預期差異有明確說明且符合 specification。
 - [ ] Fixtures 不包含真實 employer identifiers、private repository names、credentials、production notes 或個人 journal paths。

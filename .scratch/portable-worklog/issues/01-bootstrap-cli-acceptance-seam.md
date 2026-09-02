@@ -6,6 +6,8 @@
 
 **Status:** ready-for-agent
 
+**Milestone:** M1 — 最小可用流程
+
 - [ ] Source 可以產生不依賴 Go runtime 的 `worklog` executable，並提供穩定的 root help 與 version 輸出。
 - [ ] 未知 command 或不合法參數會回傳非零 exit status 與可理解的錯誤訊息。
 - [ ] Acceptance harness 會編譯 CLI，並以外部 process 在臨時 home、config root、state root、Git repository 與 journal destination 中執行。

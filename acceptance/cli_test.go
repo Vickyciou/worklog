@@ -55,6 +55,7 @@ Usage:
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
+  day        Preview and write today's offline journal
   setup      Create the first profile interactively
   profile    Add, inspect, and validate profiles
   author     Add, inspect, and validate author identities

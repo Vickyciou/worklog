@@ -60,6 +60,27 @@ journal destination that daily commands should use. A repository can belong to o
 one profile. Exact duplicate paths and overlapping parent or child mappings are
 rejected.
 
+## Generate today's journal
+
+After setup, an M1 configuration with exactly one profile needs no daily flags:
+
+```sh
+worklog day
+```
+
+`day` collects the profile's current local date, builds a deterministic summary
+without invoking the optional summarizer command, and prints the complete Markdown
+preview before asking for confirmation. Only `y` or `yes` writes. The core chooses
+the destination as
+`<journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md`; configured providers never
+choose a path.
+
+The rendered Obsidian note uses YAML date, string, and list properties, bounded and
+deduplicated public technology names, Taiwan Traditional Chinese headings, and an
+explicit managed block with a DailyFacts source digest. A confirmed first write is
+installed atomically. Existing notes are never replaced by `day`; historical dates
+and managed-block refresh are separate workflows.
+
 ## Inspect daily facts
 
 Inspect one profile's facts for its current local date, or pass a historical date:

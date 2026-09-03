@@ -15,6 +15,8 @@ import (
 
 	"github.com/Vickyciou/worklog/internal/config"
 	"github.com/Vickyciou/worklog/internal/dailyfacts"
+	"github.com/Vickyciou/worklog/internal/dailysummary"
+	"github.com/Vickyciou/worklog/internal/journal"
 )
 
 type cli struct {
@@ -35,9 +37,70 @@ func (application cli) execute(command string, arguments []string) error {
 		return application.repository(arguments)
 	case "inspect":
 		return application.inspect(arguments)
+	case "day":
+		return application.day(arguments)
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
+}
+
+func (application cli) day(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, dayHelp)
+		return nil
+	}
+	if len(arguments) != 0 {
+		return errors.New("usage: worklog day")
+	}
+	configuration, err := config.Load(application.paths)
+	if err != nil {
+		return err
+	}
+	if len(configuration.Profiles) != 1 {
+		return fmt.Errorf("day requires exactly one configured profile in M1; found %d", len(configuration.Profiles))
+	}
+	profile := configuration.Profiles[0]
+	date, err := dailyfacts.CurrentDate(profile, time.Now())
+	if err != nil {
+		return err
+	}
+	facts, err := dailyfacts.Collect(profile, date)
+	if err != nil {
+		return fmt.Errorf("collect profile %q: %w", profile.Name, err)
+	}
+	summary := dailysummary.Fallback(facts)
+	contents, err := journal.Render(profile, facts, summary)
+	if err != nil {
+		return fmt.Errorf("render profile %q: %w", profile.Name, err)
+	}
+	destination, err := journal.Path(profile, date)
+	if err != nil {
+		return err
+	}
+	if err := journal.CheckAvailable(destination); err != nil {
+		return fmt.Errorf("refuse journal destination %q: %w", destination, err)
+	}
+
+	fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", destination)
+	if _, err := application.stdout.Write(contents); err != nil {
+		return err
+	}
+	fmt.Fprint(application.stdout, "\nWrite this journal? [y/N]: ")
+	answer, err := bufio.NewReader(application.stdin).ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return fmt.Errorf("read confirmation: %w", err)
+	}
+	answer = strings.ToLower(strings.TrimSpace(answer))
+	if answer != "y" && answer != "yes" {
+		fmt.Fprintln(application.stdout)
+		return errors.New("journal write not confirmed")
+	}
+	if err := journal.WriteAtomic(destination, contents); err != nil {
+		fmt.Fprintln(application.stdout)
+		return fmt.Errorf("write journal %q: %w", destination, err)
+	}
+	fmt.Fprintf(application.stdout, "\nWrote journal %s.\n", destination)
+	return nil
 }
 
 func (application cli) inspect(arguments []string) error {

@@ -17,6 +17,7 @@ Usage:
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
+  day        Preview and write today's offline journal
   setup      Create the first profile interactively
   profile    Add, inspect, and validate profiles
   author     Add, inspect, and validate author identities
@@ -46,6 +47,26 @@ Behavior:
 
 Options:
   -h, --help    Show help for inspect
+`
+
+const dayHelp = `Preview and write today's deterministic offline journal.
+
+Usage:
+  worklog day
+
+Behavior:
+  M1 requires exactly one configured profile. The command collects today's
+  DailyFacts in that profile's timezone, generates a summary without invoking a
+  summarizer, and previews the complete journal and destination before asking
+  for confirmation. The destination is:
+
+    <journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md
+
+  Only an explicit y or yes writes the journal. Existing journals are not
+  replaced; historical generation and refresh are separate workflows.
+
+Options:
+  -h, --help    Show help for day
 `
 
 const captureHelp = `Record a versioned WorklogEvent as a Git note.
@@ -105,6 +126,9 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 			case "inspect":
 				fmt.Fprint(stdout, inspectHelp)
 				return 0
+			case "day":
+				fmt.Fprint(stdout, dayHelp)
+				return 0
 			}
 		}
 		if len(args) != 1 {
@@ -126,7 +150,7 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "worklog %s\n", version)
 		return 0
-	case "setup", "profile", "author", "repo", "inspect":
+	case "setup", "profile", "author", "repo", "inspect", "day":
 		paths, err := config.DefaultPaths()
 		if err != nil {
 			return commandError(stderr, err)

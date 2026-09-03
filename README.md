@@ -60,6 +60,23 @@ journal destination that daily commands should use. A repository can belong to o
 one profile. Exact duplicate paths and overlapping parent or child mappings are
 rejected.
 
+## Inspect daily facts
+
+Inspect one profile's facts for its current local date, or pass a historical date:
+
+```sh
+worklog inspect personal
+worklog inspect personal 2026-09-02
+```
+
+Collection scans only the profile's registered repositories. It matches author
+identities and uses commit timestamps in the profile timezone, deduplicates commits
+reachable from multiple refs, and ignores merge commits and `refs/notes/worklog`.
+The JSON output includes structured worklog notes and commit-subject fallback facts,
+but excludes hashes, repository paths, author emails, commit bodies, diffs, source
+code, and capture source metadata. `inspect` does not invoke a summarizer or write a
+journal.
+
 Configuration and runtime state stay outside the source repository. Defaults follow
 the platform user configuration directory and XDG state directory conventions. Set
 `WORKLOG_CONFIG_HOME` or `WORKLOG_STATE_HOME` to replace either application root;

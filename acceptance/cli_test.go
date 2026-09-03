@@ -54,6 +54,7 @@ Usage:
 
 Commands:
   capture    Record a structured event for a Git commit
+  inspect    Collect and print one profile's daily facts
   setup      Create the first profile interactively
   profile    Add, inspect, and validate profiles
   author     Add, inspect, and validate author identities
@@ -115,6 +116,43 @@ Options:
   -h, --help    Show help for capture
 `
 	for _, arguments := range [][]string{{"capture", "--help"}, {"capture", "-h"}, {"help", "capture"}} {
+		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {
+			environment := newEnvironment(t)
+			result := environment.run(t, arguments...)
+
+			if result.exitCode != 0 {
+				t.Fatalf("exit code = %d, want 0; stderr:\n%s", result.exitCode, result.stderr)
+			}
+			if result.stderr != "" {
+				t.Fatalf("stderr = %q, want empty", result.stderr)
+			}
+			if result.stdout != expected {
+				t.Fatalf("stdout mismatch\n--- got ---\n%s--- want ---\n%s", result.stdout, expected)
+			}
+		})
+	}
+}
+
+func TestInspectHelpDescribesCollectionAndPrivacyContract(t *testing.T) {
+	const expected = `Collect and print one profile's DailyFacts without side effects.
+
+Usage:
+  worklog inspect <profile> [YYYY-MM-DD]
+
+Behavior:
+  The date defaults to today in the profile's configured timezone. Collection
+  scans only repositories registered to the profile, matches configured author
+  identities, uses commit timestamps, deduplicates commits across refs, and
+  ignores merge commits and refs/notes/worklog by default.
+
+  Output is JSON and excludes commit hashes, repository paths, author emails,
+  commit bodies, raw diffs, source code, and capture source metadata. Inspect
+  never invokes the configured summarizer or writes a journal.
+
+Options:
+  -h, --help    Show help for inspect
+`
+	for _, arguments := range [][]string{{"inspect", "--help"}, {"inspect", "-h"}, {"help", "inspect"}} {
 		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {
 			environment := newEnvironment(t)
 			result := environment.run(t, arguments...)

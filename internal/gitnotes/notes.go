@@ -42,7 +42,7 @@ func ResolveCommit(repository string, revision string) (string, error) {
 }
 
 func Add(repository string, commit string, note []byte, equivalent func([]byte, []byte) bool) (Result, error) {
-	existing, found, err := read(repository, commit)
+	existing, found, err := Read(repository, commit)
 	if err != nil {
 		return Created, err
 	}
@@ -60,7 +60,7 @@ func Add(repository string, commit string, note []byte, equivalent func([]byte, 
 
 	// Another writer can win after the initial read. Re-read so an identical
 	// concurrent write remains idempotent and a different write stays intact.
-	existing, found, readErr := read(repository, commit)
+	existing, found, readErr := Read(repository, commit)
 	if readErr != nil {
 		return Created, readErr
 	}
@@ -74,7 +74,8 @@ func Add(repository string, commit string, note []byte, equivalent func([]byte, 
 	return Created, fmt.Errorf("write Git note: %w", writeErr)
 }
 
-func read(repository string, commit string) ([]byte, bool, error) {
+// Read returns the worklog note for a commit without modifying the notes ref.
+func Read(repository string, commit string) ([]byte, bool, error) {
 	listed, err := run(repository, nil, "notes", "--ref="+Ref, "list", commit)
 	if err != nil {
 		var exitError *exec.ExitError

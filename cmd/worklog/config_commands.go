@@ -11,8 +11,10 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/Vickyciou/worklog/internal/config"
+	"github.com/Vickyciou/worklog/internal/dailyfacts"
 )
 
 type cli struct {
@@ -31,9 +33,48 @@ func (application cli) execute(command string, arguments []string) error {
 		return application.author(arguments)
 	case "repo":
 		return application.repository(arguments)
+	case "inspect":
+		return application.inspect(arguments)
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}
+}
+
+func (application cli) inspect(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, inspectHelp)
+		return nil
+	}
+	if len(arguments) < 1 || len(arguments) > 2 {
+		return errors.New("usage: worklog inspect <profile> [YYYY-MM-DD]")
+	}
+	configuration, err := config.Load(application.paths)
+	if err != nil {
+		return err
+	}
+	profile, found := configuration.Profile(arguments[0])
+	if !found {
+		return fmt.Errorf("profile %q does not exist", arguments[0])
+	}
+	date := ""
+	if len(arguments) == 2 {
+		date = arguments[1]
+	} else {
+		date, err = dailyfacts.CurrentDate(*profile, time.Now())
+		if err != nil {
+			return err
+		}
+	}
+	document, err := dailyfacts.Collect(*profile, date)
+	if err != nil {
+		return fmt.Errorf("inspect profile %q: %w", profile.Name, err)
+	}
+	contents, err := dailyfacts.Encode(document)
+	if err != nil {
+		return err
+	}
+	_, err = application.stdout.Write(contents)
+	return err
 }
 
 func (application cli) setup(arguments []string) error {

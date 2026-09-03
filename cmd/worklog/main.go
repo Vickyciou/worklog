@@ -16,6 +16,7 @@ Usage:
 
 Commands:
   capture    Record a structured event for a Git commit
+  inspect    Collect and print one profile's daily facts
   setup      Create the first profile interactively
   profile    Add, inspect, and validate profiles
   author     Add, inspect, and validate author identities
@@ -26,6 +27,25 @@ Commands:
 Options:
   -h, --help       Show help for worklog
   -v, --version    Print version information
+`
+
+const inspectHelp = `Collect and print one profile's DailyFacts without side effects.
+
+Usage:
+  worklog inspect <profile> [YYYY-MM-DD]
+
+Behavior:
+  The date defaults to today in the profile's configured timezone. Collection
+  scans only repositories registered to the profile, matches configured author
+  identities, uses commit timestamps, deduplicates commits across refs, and
+  ignores merge commits and refs/notes/worklog by default.
+
+  Output is JSON and excludes commit hashes, repository paths, author emails,
+  commit bodies, raw diffs, source code, and capture source metadata. Inspect
+  never invokes the configured summarizer or writes a journal.
+
+Options:
+  -h, --help    Show help for inspect
 `
 
 const captureHelp = `Record a versioned WorklogEvent as a Git note.
@@ -77,9 +97,15 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	switch args[0] {
 	case "help":
-		if len(args) == 2 && args[1] == "capture" {
-			fmt.Fprint(stdout, captureHelp)
-			return 0
+		if len(args) == 2 {
+			switch args[1] {
+			case "capture":
+				fmt.Fprint(stdout, captureHelp)
+				return 0
+			case "inspect":
+				fmt.Fprint(stdout, inspectHelp)
+				return 0
+			}
 		}
 		if len(args) != 1 {
 			return usageError(stderr, "%q does not accept arguments", args[0])
@@ -100,7 +126,7 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "worklog %s\n", version)
 		return 0
-	case "setup", "profile", "author", "repo":
+	case "setup", "profile", "author", "repo", "inspect":
 		paths, err := config.DefaultPaths()
 		if err != nil {
 			return commandError(stderr, err)

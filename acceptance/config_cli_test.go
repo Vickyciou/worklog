@@ -15,15 +15,19 @@ import (
 func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 	environment := newEnvironment(t)
 	secret := "must-not-appear-in-worklog-config"
-	environment.environment = append(environment.environment, "PROVIDER_API_TOKEN="+secret)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"PROVIDER_API_TOKEN": secret,
+		"TZ":                 "Asia/Taipei",
+		"LC_ALL":             "",
+		"LC_MESSAGES":        "",
+		"LANG":               "zh_TW.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
 	input := strings.Join([]string{
-		"work",
-		"developer@example.com",
-		environment.repository,
-		"Asia/Taipei",
-		"zh-TW",
+		"1",
+		"",
 		environment.journalDestination,
-		"summary-adapter --format json",
+		"",
 		"",
 	}, "\n")
 
@@ -36,6 +40,7 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", result.stderr)
 	}
 	assertContains(t, result.stdout, `Created profile "work".`)
+	assertContains(t, result.stdout, "Daily summary:  Built-in (no AI or network)")
 	if strings.Contains(result.stdout, secret) {
 		t.Fatal("setup output leaked provider secret")
 	}
@@ -53,7 +58,6 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		`"timezone": "Asia/Taipei"`,
 		`"language": "zh-TW"`,
 		`"journal_destination": `,
-		`"summarizer_command": "summary-adapter --format json"`,
 	} {
 		assertContains(t, configuration, expected)
 	}
@@ -96,6 +100,180 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		`"journal_destination": `,
 	} {
 		assertContains(t, resolved.stdout, expected)
+	}
+}
+
+func TestSetupSupportsPersonalAndCustomProfiles(t *testing.T) {
+	tests := []struct {
+		name       string
+		inputLines []string
+		profile    string
+	}{
+		{name: "personal", inputLines: []string{"2"}, profile: "personal"},
+		{name: "custom", inputLines: []string{"3", "client-a"}, profile: "client-a"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			environment := newEnvironment(t)
+			environment.environment = cleanEnvironment(environment.environment, map[string]string{
+				"TZ":          "Asia/Taipei",
+				"LC_ALL":      "",
+				"LC_MESSAGES": "",
+				"LANG":        "zh_TW.UTF-8",
+			})
+			assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+			input := append([]string{}, test.inputLines...)
+			input = append(input, "", environment.journalDestination, "", "")
+
+			result := environment.runWithInput(t, strings.Join(input, "\n"), "setup")
+
+			assertSucceeded(t, result)
+			assertContains(t, result.stdout, `Created profile "`+test.profile+`".`)
+			show := environment.run(t, "profile", "show", test.profile)
+			assertSucceeded(t, show)
+		})
+	}
+}
+
+func TestSetupAcceptsRepositoryAndJournalDefaults(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "Asia/Taipei",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "zh_TW.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+	nestedDirectory := filepath.Join(environment.repository, "nested", "directory")
+	if err := os.MkdirAll(nestedDirectory, 0o700); err != nil {
+		t.Fatalf("create nested working directory: %v", err)
+	}
+	input := strings.Join([]string{"", "", "", "", ""}, "\n")
+
+	result := environment.runWithInputAt(t, nestedDirectory, input, "setup")
+
+	assertSucceeded(t, result)
+	expectedJournal := filepath.Join(environment.home, "Documents", "worklog", "work")
+	assertContains(t, result.stdout, "Repository ["+canonicalTestPath(t, environment.repository)+"]:")
+	assertContains(t, result.stdout, "Journal folder ["+expectedJournal+"]:")
+	show := environment.run(t, "profile", "show", "work")
+	assertSucceeded(t, show)
+	assertContains(t, show.stdout, `"journal_destination": "`+expectedJournal+`"`)
+}
+
+func TestSetupExpandsHomePaths(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	repository := filepath.Join(environment.home, "other-repository")
+	initializeGitRepository(t, repository, environment.environment)
+	git := exec.Command("git", "-C", repository, "config", "user.email", "other@example.invalid")
+	git.Env = environment.environment
+	if result := runCommand(t, git); result.exitCode != 0 {
+		t.Fatalf("configure alternate repository: %s", result.stderr)
+	}
+	input := strings.Join([]string{"2", "~/other-repository", "~/journals/personal", "", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "setup")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Author:         other@example.invalid")
+	show := environment.run(t, "profile", "show", "personal")
+	assertSucceeded(t, show)
+	assertContains(t, show.stdout, `"journal_destination": "`+filepath.Join(environment.home, "journals", "personal")+`"`)
+	repositories := environment.run(t, "repo", "list", "personal")
+	assertSucceeded(t, repositories)
+	assertContains(t, repositories.stdout, canonicalTestPath(t, repository))
+	authors := environment.run(t, "author", "list", "personal")
+	assertSucceeded(t, authors)
+	if authors.stdout != "other@example.invalid\n" {
+		t.Fatalf("author list = %q, want selected repository author", authors.stdout)
+	}
+}
+
+func TestSetupPromptsOnlyWhenGitAuthorCannotBeDetected(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	input := strings.Join([]string{
+		"1",
+		"",
+		"fallback@example.invalid",
+		environment.journalDestination,
+		"",
+		"",
+	}, "\n")
+
+	result := environment.runWithInput(t, input, "setup")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Author email (not available from Git config):")
+	assertContains(t, result.stdout, "Language:       en-US")
+}
+
+func TestSetupPromptsForUndetectableTimezoneAndLanguage(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "Not/A-Timezone",
+		"LC_ALL":      "C",
+		"LC_MESSAGES": "C",
+		"LANG":        "C",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+	input := strings.Join([]string{
+		"1",
+		"",
+		"Asia/Taipei",
+		"en_US",
+		environment.journalDestination,
+		"",
+	}, "\n")
+
+	result := environment.runWithInput(t, input, "setup")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Timezone (could not be detected) [UTC]:")
+	assertContains(t, result.stdout, "Language (could not be detected) [zh-TW]:")
+	assertContains(t, result.stdout, "Timezone:       Asia/Taipei")
+	assertContains(t, result.stdout, "Language:       en-US")
+}
+
+func TestSetupCancellationHasNoSideEffects(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+	journal := filepath.Join(environment.root, "cancelled-journal")
+	input := strings.Join([]string{"1", "", journal, "n", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "setup")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Setup cancelled.")
+	if count := strings.Count(result.stdout, "Create these settings?"); count != 1 {
+		t.Fatalf("confirmation prompt count = %d, want 1", count)
+	}
+	for _, path := range []string{
+		filepath.Join(environment.configRoot, "worklog"),
+		filepath.Join(environment.stateRoot, "worklog"),
+		journal,
+	} {
+		if _, err := os.Stat(path); !errors.Is(err, os.ErrNotExist) {
+			t.Fatalf("cancelled setup created %q: %v", path, err)
+		}
 	}
 }
 

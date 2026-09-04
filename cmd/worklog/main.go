@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strings"
 
 	"github.com/Vickyciou/worklog/internal/capture"
 	"github.com/Vickyciou/worklog/internal/config"
@@ -13,6 +14,10 @@ const rootHelp = `worklog records and renders portable work journals.
 
 Usage:
   worklog <command>
+
+Getting started:
+  worklog setup       Detect Git and system settings, then create a profile
+  worklog day         Preview and write today's journal
 
 Commands:
   capture    Record a structured event for a Git commit
@@ -30,6 +35,123 @@ Options:
   -v, --version    Print version information
 `
 
+const setupHelp = `Create the first worklog profile with guided defaults.
+
+Usage:
+  worklog setup
+
+Behavior:
+  Choose Work, Personal, or a custom profile name. The current Git repository
+  and ~/Documents/worklog/<profile> are editable defaults. Worklog reads the
+  author email from that repository and detects timezone and language from the
+  environment or operating system. If a required value cannot be detected,
+  setup asks only for that value.
+
+  Setup shows the resolved settings once before writing. The M1 summary mode is
+  Built-in, which uses no AI or network. Cancelling writes no configuration,
+  state, or journal directory.
+
+Examples:
+  cd /path/to/repository
+  worklog setup
+
+Next:
+  Run worklog day to preview today's journal. Register another repository with
+  worklog repo add <profile> <path>.
+
+Options:
+  -h, --help    Show help for setup
+`
+
+const profileHelp = `Manage advanced profile routing and preferences.
+
+A profile keeps work and personal repositories, author identities, timezone,
+journal destination, and summary preferences separate.
+
+Usage:
+  worklog profile <add|list|show|validate>
+
+Commands:
+  add         Add another profile
+  list        List configured profile names
+  show        Print one profile as JSON
+  validate    Validate one profile or all profiles
+
+Examples:
+  worklog profile list
+  worklog profile show work
+  worklog profile add --help
+
+Next:
+  Add an author identity with worklog author add, then register a repository
+  with worklog repo add.
+`
+
+const profileAddHelp = `Add another profile using explicit advanced settings.
+
+Usage:
+  worklog profile add <name> --timezone <zone> --language <language> \\
+    --journal-destination <path> [--summarizer-command <command>]
+
+Examples:
+  worklog profile add personal --timezone Asia/Taipei --language zh-TW \\
+    --journal-destination ~/Documents/worklog/personal
+
+Credentials must not be written in a summarizer command. Let the command read
+them from its environment or system credential storage.
+
+Next:
+  Run worklog author add <profile> <email>, then worklog repo add <profile>
+  <path>.
+`
+
+const authorHelp = `Manage Git author emails recognized by a profile.
+
+Usage:
+  worklog author <add|list|validate>
+
+Examples:
+  worklog author add work developer@example.com
+  worklog author list work
+  worklog author validate work
+
+Next:
+  Register the author's repository with worklog repo add <profile> <path>.
+`
+
+const repoHelp = `Manage which Git repositories belong to each profile.
+
+One profile can contain multiple repositories, but every repository can belong
+to only one profile. Worklog scans registered repositories only.
+
+Usage:
+  worklog repo <add|list|show|validate>
+
+Examples:
+  worklog repo add work /path/to/repository
+  worklog repo list work
+  worklog repo show /path/to/repository
+  worklog repo validate
+
+Next:
+  Run worklog inspect <profile> to review the facts worklog will use.
+`
+
+const repoAddHelp = `Add one Git repository to a profile.
+
+Usage:
+  worklog repo add <profile> <path>
+
+Example:
+  worklog repo add work /path/to/repository
+
+The path must resolve to a Git repository and must not overlap a repository
+already owned by another profile.
+
+Next:
+  Run worklog repo validate <path>, then worklog inspect <profile>.
+`
+
 const inspectHelp = `Collect and print one profile's DailyFacts without side effects.
 
 Usage:
@@ -44,6 +166,9 @@ Behavior:
   Output is JSON and excludes commit hashes, repository paths, author emails,
   commit bodies, raw diffs, source code, and capture source metadata. Inspect
   never invokes the configured summarizer or writes a journal.
+
+Next:
+  Run worklog day to preview today's journal.
 
 Options:
   -h, --help    Show help for inspect
@@ -64,6 +189,9 @@ Behavior:
 
   Only an explicit y or yes writes the journal. Existing journals are not
   replaced; historical generation and refresh are separate workflows.
+
+Next:
+  Run worklog inspect <profile> first when you want to review the source facts.
 
 Options:
   -h, --help    Show help for day
@@ -96,6 +224,9 @@ Behavior:
   Repeating the same event succeeds without changing the note. A different event
   for a commit that already has a note is rejected without overwriting it.
 
+Next:
+  Run worklog inspect <profile> to verify the event in the daily facts.
+
 Options:
   -h, --help    Show help for capture
 `
@@ -118,23 +249,11 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 
 	switch args[0] {
 	case "help":
-		if len(args) == 2 {
-			switch args[1] {
-			case "capture":
-				fmt.Fprint(stdout, captureHelp)
-				return 0
-			case "inspect":
-				fmt.Fprint(stdout, inspectHelp)
-				return 0
-			case "day":
-				fmt.Fprint(stdout, dayHelp)
-				return 0
-			}
+		help, found := helpText(args[1:])
+		if !found {
+			return usageError(stderr, "unknown help topic %q", strings.Join(args[1:], " "))
 		}
-		if len(args) != 1 {
-			return usageError(stderr, "%q does not accept arguments", args[0])
-		}
-		fmt.Fprint(stdout, rootHelp)
+		fmt.Fprint(stdout, help)
 		return 0
 	case "-h", "--help":
 		if len(args) != 1 {
@@ -157,12 +276,32 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		application := cli{stdin: stdin, stdout: stdout, paths: paths}
 		if err := application.execute(args[0], args[1:]); err != nil {
-			return commandError(stderr, err)
+			return commandErrorWithHelp(stderr, err, closestHelpTopic(args))
 		}
 		return 0
 	default:
 		return usageError(stderr, "unknown command %q", args[0])
 	}
+}
+
+func helpText(topic []string) (string, bool) {
+	if len(topic) == 0 {
+		return rootHelp, true
+	}
+	key := strings.Join(topic, " ")
+	help := map[string]string{
+		"setup":       setupHelp,
+		"profile":     profileHelp,
+		"profile add": profileAddHelp,
+		"author":      authorHelp,
+		"repo":        repoHelp,
+		"repo add":    repoAddHelp,
+		"capture":     captureHelp,
+		"inspect":     inspectHelp,
+		"day":         dayHelp,
+	}
+	value, found := help[key]
+	return value, found
 }
 
 func runCapture(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
@@ -198,4 +337,20 @@ func usageError(stderr io.Writer, format string, args ...any) int {
 func commandError(stderr io.Writer, err error) int {
 	fmt.Fprintf(stderr, "worklog: %v\n", err)
 	return 1
+}
+
+func commandErrorWithHelp(stderr io.Writer, err error, topic string) int {
+	fmt.Fprintf(stderr, "worklog: %v\n", err)
+	fmt.Fprintf(stderr, "Run 'worklog %s --help' for help.\n", topic)
+	return 1
+}
+
+func closestHelpTopic(args []string) string {
+	if len(args) > 1 {
+		candidate := strings.Join(args[:2], " ")
+		if _, found := helpText(args[:2]); found {
+			return candidate
+		}
+	}
+	return args[0]
 }

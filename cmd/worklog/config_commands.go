@@ -141,8 +141,12 @@ func (application cli) inspect(arguments []string) error {
 }
 
 func (application cli) setup(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, setupHelp)
+		return nil
+	}
 	if len(arguments) != 0 {
-		return errors.New("usage: worklog setup")
+		return errors.New("usage: worklog setup; run 'worklog setup --help' for details")
 	}
 	if _, err := config.Load(application.paths); err == nil {
 		return errors.New("configuration already exists; use profile, author, or repo commands to update it")
@@ -151,11 +155,7 @@ func (application cli) setup(arguments []string) error {
 	}
 
 	reader := bufio.NewReader(application.stdin)
-	name, err := application.prompt(reader, "Profile name", "", true)
-	if err != nil {
-		return err
-	}
-	author, err := application.prompt(reader, "Author email", "", true)
+	name, err := application.chooseInitialProfile(reader)
 	if err != nil {
 		return err
 	}
@@ -163,41 +163,102 @@ func (application cli) setup(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("get current directory: %w", err)
 	}
-	repository, err := application.prompt(reader, "Repository", workingDirectory, true)
+	repositoryDefault := workingDirectory
+	if root, rootErr := gitRepositoryRoot(workingDirectory); rootErr == nil {
+		repositoryDefault = root
+	}
+	repository, err := application.prompt(reader, "Repository", repositoryDefault, true)
 	if err != nil {
 		return err
 	}
-	timezone, err := application.prompt(reader, "Timezone", defaultTimezone(), true)
+	repository, err = expandUserPath(repository)
 	if err != nil {
 		return err
 	}
-	language, err := application.prompt(reader, "Language", "zh-TW", true)
+	repositoryRoot, err := gitRepositoryRoot(repository)
 	if err != nil {
 		return err
+	}
+	author, err := gitAuthorEmail(repositoryRoot)
+	if err != nil {
+		return err
+	}
+	if author == "" || config.ValidateAuthor(author) != nil {
+		author, err = application.prompt(reader, "Author email (not available from Git config)", "", true)
+		if err != nil {
+			return err
+		}
+	}
+	author = strings.TrimSpace(author)
+	if err := config.ValidateAuthor(author); err != nil {
+		return err
+	}
+	timezone, detected := detectTimezone()
+	if !detected {
+		timezone, err = application.prompt(reader, "Timezone (could not be detected)", "UTC", true)
+		if err != nil {
+			return err
+		}
+	}
+	if normalized, valid := validTimezone(timezone); valid {
+		timezone = normalized
+	} else {
+		return fmt.Errorf("invalid timezone %q; use an IANA timezone such as Asia/Taipei", timezone)
+	}
+	language, detected := detectLanguage()
+	if !detected {
+		language, err = application.prompt(reader, "Language (could not be detected)", "zh-TW", true)
+		if err != nil {
+			return err
+		}
+	}
+	language = normalizeLanguage(language)
+	if language == "" {
+		return errors.New("language is required; use a language such as zh-TW or en-US")
 	}
 	journalDefault, err := defaultJournalDestination(name)
 	if err != nil {
 		return err
 	}
-	destination, err := application.prompt(reader, "Journal destination", journalDefault, true)
+	destination, err := application.prompt(reader, "Journal folder", journalDefault, true)
 	if err != nil {
 		return err
 	}
-	summarizer, err := application.prompt(reader, "Summarizer command (optional; credentials must use the environment)", "", false)
+	destination, err = expandUserPath(destination)
 	if err != nil {
 		return err
+	}
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return fmt.Errorf("resolve journal folder: %w", err)
 	}
 
-	profile, err := config.NewProfile(name, timezone, language, destination, summarizer)
+	fmt.Fprintf(application.stdout, `
+Ready:
+  Profile:        %s
+  Repository:     %s
+  Author:         %s
+  Timezone:       %s
+  Language:       %s
+  Journal folder: %s
+  Daily summary:  Built-in (no AI or network)
+
+`, name, repositoryRoot, author, timezone, language, destination)
+	confirmed, err := application.confirm(reader, "Create these settings?")
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintln(application.stdout, "Setup cancelled.")
+		return nil
+	}
+
+	profile, err := config.NewProfile(name, timezone, language, destination, "")
 	if err != nil {
 		return err
 	}
 	configuration := config.Config{Version: config.Version, Profiles: []config.Profile{profile}}
 	if err := configuration.AddAuthor(profile.Name, strings.TrimSpace(author)); err != nil {
-		return err
-	}
-	repositoryRoot, err := gitRepositoryRoot(repository)
-	if err != nil {
 		return err
 	}
 	if err := configuration.AddRepository(profile.Name, repositoryRoot); err != nil {
@@ -211,6 +272,36 @@ func (application cli) setup(arguments []string) error {
 	}
 	fmt.Fprintf(application.stdout, "Created profile %q.\n", profile.Name)
 	return nil
+}
+
+func (application cli) chooseInitialProfile(reader *bufio.Reader) (string, error) {
+	fmt.Fprint(application.stdout, `Choose a profile:
+  1. Work      Work repositories and journals
+  2. Personal  Personal repositories and journals
+  3. Custom    Choose your own profile name
+
+`)
+	choice, err := application.prompt(reader, "Profile", "1", true)
+	if err != nil {
+		return "", err
+	}
+	switch strings.ToLower(strings.TrimSpace(choice)) {
+	case "1", "work":
+		return "work", nil
+	case "2", "personal":
+		return "personal", nil
+	case "3", "custom":
+		name, err := application.prompt(reader, "Profile name (for example client-a)", "", true)
+		if err != nil {
+			return "", err
+		}
+		if err := config.ValidateProfileName(name); err != nil {
+			return "", err
+		}
+		return name, nil
+	default:
+		return "", errors.New("profile must be 1 (Work), 2 (Personal), or 3 (Custom)")
+	}
 }
 
 func (application cli) prompt(reader *bufio.Reader, label, defaultValue string, required bool) (string, error) {
@@ -233,12 +324,36 @@ func (application cli) prompt(reader *bufio.Reader, label, defaultValue string, 
 	return value, nil
 }
 
+func (application cli) confirm(reader *bufio.Reader, label string) (bool, error) {
+	fmt.Fprintf(application.stdout, "%s [Y/n]: ", label)
+	value, err := reader.ReadString('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return false, fmt.Errorf("read confirmation: %w", err)
+	}
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", "y", "yes":
+		return true, nil
+	case "n", "no":
+		return false, nil
+	default:
+		return false, errors.New("confirmation must be y, yes, n, or no")
+	}
+}
+
 func (application cli) profile(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, profileHelp)
+		return nil
+	}
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile <add|list|show|validate>")
+		return errors.New("usage: worklog profile <add|list|show|validate>; run 'worklog profile --help' for details")
 	}
 	switch arguments[0] {
 	case "add":
+		if len(arguments) == 2 && (arguments[1] == "-h" || arguments[1] == "--help") {
+			fmt.Fprint(application.stdout, profileAddHelp)
+			return nil
+		}
 		return application.addProfile(arguments[1:])
 	case "list":
 		return application.listProfiles(arguments[1:])
@@ -342,8 +457,12 @@ func (application cli) validateProfiles(arguments []string) error {
 }
 
 func (application cli) author(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, authorHelp)
+		return nil
+	}
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog author <add|list|validate>")
+		return errors.New("usage: worklog author <add|list|validate>; run 'worklog author --help' for details")
 	}
 	switch arguments[0] {
 	case "add":
@@ -403,11 +522,19 @@ func (application cli) author(arguments []string) error {
 }
 
 func (application cli) repository(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, repoHelp)
+		return nil
+	}
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog repo <add|list|show|validate>")
+		return errors.New("usage: worklog repo <add|list|show|validate>; run 'worklog repo --help' for details")
 	}
 	switch arguments[0] {
 	case "add":
+		if len(arguments) == 2 && (arguments[1] == "-h" || arguments[1] == "--help") {
+			fmt.Fprint(application.stdout, repoAddHelp)
+			return nil
+		}
 		return application.addRepository(arguments[1:])
 	case "list":
 		return application.listRepositories(arguments[1:])
@@ -559,11 +686,99 @@ func gitRepositoryRoot(path string) (string, error) {
 	return canonical, nil
 }
 
-func defaultTimezone() string {
-	if timezone := strings.TrimSpace(os.Getenv("TZ")); timezone != "" {
-		return timezone
+func gitAuthorEmail(repository string) (string, error) {
+	command := exec.Command("git", "-C", repository, "config", "--get", "user.email")
+	output, err := command.Output()
+	if err != nil {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) && exitError.ExitCode() == 1 {
+			return "", nil
+		}
+		return "", fmt.Errorf("read Git author email: %w", err)
 	}
-	return "UTC"
+	return strings.TrimSpace(string(output)), nil
+}
+
+func detectTimezone() (string, bool) {
+	if value, configured := os.LookupEnv("TZ"); configured && strings.TrimSpace(value) != "" {
+		return validTimezone(strings.TrimPrefix(strings.TrimSpace(value), ":"))
+	}
+	if timezone, valid := validTimezone(time.Now().Location().String()); valid && timezone != "Local" {
+		return timezone, true
+	}
+	if target, err := os.Readlink("/etc/localtime"); err == nil {
+		for _, marker := range []string{"/zoneinfo/", "/zoneinfo.default/"} {
+			if index := strings.LastIndex(target, marker); index >= 0 {
+				if timezone, valid := validTimezone(target[index+len(marker):]); valid {
+					return timezone, true
+				}
+			}
+		}
+	}
+	if contents, err := os.ReadFile("/etc/timezone"); err == nil {
+		if timezone, valid := validTimezone(strings.TrimSpace(string(contents))); valid {
+			return timezone, true
+		}
+	}
+	return "", false
+}
+
+func validTimezone(value string) (string, bool) {
+	if value == "" || value == "Local" {
+		return "", false
+	}
+	if _, err := time.LoadLocation(value); err != nil {
+		return "", false
+	}
+	return value, true
+}
+
+func detectLanguage() (string, bool) {
+	for _, name := range []string{"LC_ALL", "LC_MESSAGES", "LANG"} {
+		value := strings.TrimSpace(os.Getenv(name))
+		if value == "" {
+			continue
+		}
+		language := normalizeLanguage(value)
+		return language, language != ""
+	}
+	return "", false
+}
+
+func normalizeLanguage(value string) string {
+	value = strings.TrimSpace(value)
+	if index := strings.IndexAny(value, ".@"); index >= 0 {
+		value = value[:index]
+	}
+	if value == "" || value == "C" || value == "POSIX" {
+		return ""
+	}
+	parts := strings.FieldsFunc(value, func(character rune) bool {
+		return character == '_' || character == '-'
+	})
+	if len(parts) == 0 {
+		return ""
+	}
+	parts[0] = strings.ToLower(parts[0])
+	if len(parts) > 1 {
+		parts[1] = strings.ToUpper(parts[1])
+	}
+	return strings.Join(parts, "-")
+}
+
+func expandUserPath(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path != "~" && !strings.HasPrefix(path, "~/") && !strings.HasPrefix(path, `~\`) {
+		return path, nil
+	}
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("resolve home directory: %w", err)
+	}
+	if path == "~" {
+		return home, nil
+	}
+	return filepath.Join(home, path[2:]), nil
 }
 
 func defaultJournalDestination(profile string) (string, error) {

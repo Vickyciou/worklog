@@ -26,16 +26,28 @@ configuration, state, Git repository, and journal destination directories.
 
 ## Configuration
 
-Run the interactive setup once from the first Git repository to register:
+Run the guided setup once from the first Git repository:
 
 ```sh
 worklog setup
 ```
 
-The setup records a profile name, author email, repository, IANA timezone, language,
-journal destination, and an optional summarizer command. Credentials are never
-requested; summarizer credentials must come from environment variables or system
-credential storage.
+Choose a Work, Personal, or Custom profile. The current Git root and a
+profile-specific journal folder are editable defaults. Setup reads the effective
+author email from Git, detects timezone and language, and shows every resolved value
+for one final confirmation. If Git has no author email or the timezone cannot be
+detected safely, setup asks only for the missing value. M1 uses the deterministic
+Built-in summary, which needs no AI, network, or credentials.
+
+Discover commands and examples through either help form:
+
+```sh
+worklog --help
+worklog setup --help
+worklog profile add --help
+worklog help repo
+worklog help repo add
+```
 
 Use the configuration command families to add, inspect, and validate entries:
 
@@ -68,8 +80,8 @@ After setup, an M1 configuration with exactly one profile needs no daily flags:
 worklog day
 ```
 
-`day` collects the profile's current local date, builds a deterministic summary
-without invoking the optional summarizer command, and prints the complete Markdown
+`day` collects the profile's current local date, builds a deterministic summary,
+and prints the complete Markdown
 preview before asking for confirmation. Only `y` or `yes` writes. The core chooses
 the destination as
 `<journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md`; configured providers never

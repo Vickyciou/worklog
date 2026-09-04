@@ -23,24 +23,19 @@ func TestDayPreviewsAndWritesDeterministicOfflineJournal(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)
 
-	summarizer := "summarizer-that-must-not-run"
-	marker := filepath.Join(environment.root, "summarizer-ran")
-	if runtime.GOOS != "windows" {
-		summarizer = filepath.Join(environment.root, "summarizer")
-		script := fmt.Sprintf("#!/bin/sh\nprintf ran > %s\n", marker)
-		if err := os.WriteFile(summarizer, []byte(script), 0o700); err != nil {
-			t.Fatalf("write summarizer sentinel: %v", err)
-		}
-	}
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "zh_TW.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", profileEmail))
 
 	setupInput := strings.Join([]string{
-		"work",
-		profileEmail,
-		environment.repository,
-		"UTC",
-		"zh-TW",
+		"1",
+		"",
 		environment.journalDestination,
-		summarizer,
+		"",
 		"",
 	}, "\n")
 	assertSucceeded(t, environment.runWithInput(t, setupInput, "setup"))
@@ -139,9 +134,6 @@ technologies:
 		if strings.Contains(string(contents), forbidden) {
 			t.Fatalf("journal contains excluded value %q", forbidden)
 		}
-	}
-	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
-		t.Fatalf("day invoked configured summarizer: %v", err)
 	}
 	entries, err := os.ReadDir(filepath.Dir(destination))
 	if err != nil {

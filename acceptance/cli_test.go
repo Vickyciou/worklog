@@ -52,6 +52,10 @@ func TestRootHelp(t *testing.T) {
 Usage:
   worklog <command>
 
+Getting started:
+  worklog setup       Detect Git and system settings, then create a profile
+  worklog day         Preview and write today's journal
+
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
@@ -85,6 +89,38 @@ Options:
 	}
 }
 
+func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
+	topics := []struct {
+		name       string
+		direct     []string
+		help       []string
+		expectText string
+	}{
+		{name: "setup", direct: []string{"setup", "--help"}, help: []string{"help", "setup"}, expectText: "Worklog reads the\n  author email"},
+		{name: "profile", direct: []string{"profile", "--help"}, help: []string{"help", "profile"}, expectText: "worklog profile <add|list|show|validate>"},
+		{name: "profile add", direct: []string{"profile", "add", "--help"}, help: []string{"help", "profile", "add"}, expectText: "Credentials must not be written"},
+		{name: "author", direct: []string{"author", "--help"}, help: []string{"help", "author"}, expectText: "Manage Git author emails"},
+		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},
+		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add <profile> <path>"},
+		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "worklog inspect <profile>"},
+	}
+
+	for _, topic := range topics {
+		t.Run(topic.name, func(t *testing.T) {
+			environment := newEnvironment(t)
+			direct := environment.run(t, topic.direct...)
+			alias := environment.run(t, topic.help...)
+			if direct.exitCode != 0 || alias.exitCode != 0 {
+				t.Fatalf("help failed: direct=%d %q; alias=%d %q", direct.exitCode, direct.stderr, alias.exitCode, alias.stderr)
+			}
+			if direct.stdout != alias.stdout {
+				t.Fatalf("help aliases differ\n--- direct ---\n%s--- alias ---\n%s", direct.stdout, alias.stdout)
+			}
+			assertContains(t, direct.stdout, topic.expectText)
+		})
+	}
+}
+
 func TestCaptureHelpDescribesLiveInputContract(t *testing.T) {
 	const expected = `Record a versioned WorklogEvent as a Git note.
 
@@ -112,6 +148,9 @@ Input:
 Behavior:
   Repeating the same event succeeds without changing the note. A different event
   for a commit that already has a note is rejected without overwriting it.
+
+Next:
+  Run worklog inspect <profile> to verify the event in the daily facts.
 
 Options:
   -h, --help    Show help for capture
@@ -149,6 +188,9 @@ Behavior:
   Output is JSON and excludes commit hashes, repository paths, author emails,
   commit bodies, raw diffs, source code, and capture source metadata. Inspect
   never invokes the configured summarizer or writes a journal.
+
+Next:
+  Run worklog day to preview today's journal.
 
 Options:
   -h, --help    Show help for inspect
@@ -382,6 +424,31 @@ func TestIllegalArguments(t *testing.T) {
 	assertContains(t, result.stderr, `"version" does not accept arguments`)
 }
 
+func TestCommandErrorsPointToClosestHelpTopic(t *testing.T) {
+	tests := []struct {
+		name      string
+		arguments []string
+		help      string
+	}{
+		{name: "setup", arguments: []string{"setup", "extra"}, help: "worklog setup --help"},
+		{name: "profile add", arguments: []string{"profile", "add"}, help: "worklog profile add --help"},
+		{name: "profile", arguments: []string{"profile", "unknown"}, help: "worklog profile --help"},
+		{name: "inspect", arguments: []string{"inspect"}, help: "worklog inspect --help"},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			environment := newEnvironment(t)
+			result := environment.run(t, test.arguments...)
+
+			if result.exitCode == 0 {
+				t.Fatal("exit code = 0, want non-zero")
+			}
+			assertContains(t, result.stderr, "Run '"+test.help+"' for help.")
+		})
+	}
+}
+
 type acceptanceEnvironment struct {
 	root               string
 	home               string
@@ -447,10 +514,14 @@ func (environment acceptanceEnvironment) run(t *testing.T, arguments ...string) 
 }
 
 func (environment acceptanceEnvironment) runWithInput(t *testing.T, input string, arguments ...string) processResult {
+	return environment.runWithInputAt(t, environment.repository, input, arguments...)
+}
+
+func (environment acceptanceEnvironment) runWithInputAt(t *testing.T, directory, input string, arguments ...string) processResult {
 	t.Helper()
 
 	command := exec.Command(worklogBinary, arguments...)
-	command.Dir = environment.repository
+	command.Dir = directory
 	command.Env = environment.environment
 	command.Stdin = strings.NewReader(input)
 	return runCommand(t, command)

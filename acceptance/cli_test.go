@@ -55,13 +55,15 @@ Usage:
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
   worklog day         Preview and write today's journal
+  worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
   day        Preview and write today's offline journal
   setup      Create the first profile interactively
-  profile    Add, inspect, and validate profiles
+  settings   Update an existing profile interactively
+  profile    Add, update, inspect, and validate profiles
   author     Add, inspect, and validate author identities
   repo       Add, inspect, and validate repository mappings
   help       Show help for worklog
@@ -97,8 +99,10 @@ func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
 		expectText string
 	}{
 		{name: "setup", direct: []string{"setup", "--help"}, help: []string{"help", "setup"}, expectText: "Worklog reads the\n  author email"},
-		{name: "profile", direct: []string{"profile", "--help"}, help: []string{"help", "profile"}, expectText: "worklog profile <add|list|show|validate>"},
+		{name: "settings", direct: []string{"settings", "--help"}, help: []string{"help", "settings"}, expectText: "Changing the journal folder affects future output only"},
+		{name: "profile", direct: []string{"profile", "--help"}, help: []string{"help", "profile"}, expectText: "worklog profile <add|set|list|show|validate>"},
 		{name: "profile add", direct: []string{"profile", "add", "--help"}, help: []string{"help", "profile", "add"}, expectText: "Credentials must not be written"},
+		{name: "profile set", direct: []string{"profile", "set", "--help"}, help: []string{"help", "profile", "set"}, expectText: "Changing the journal destination does not move"},
 		{name: "author", direct: []string{"author", "--help"}, help: []string{"help", "author"}, expectText: "Manage Git author emails"},
 		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},
 		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add <profile> <path>"},
@@ -431,7 +435,9 @@ func TestCommandErrorsPointToClosestHelpTopic(t *testing.T) {
 		help      string
 	}{
 		{name: "setup", arguments: []string{"setup", "extra"}, help: "worklog setup --help"},
+		{name: "settings", arguments: []string{"settings", "one", "two"}, help: "worklog settings --help"},
 		{name: "profile add", arguments: []string{"profile", "add"}, help: "worklog profile add --help"},
+		{name: "profile set", arguments: []string{"profile", "set"}, help: "worklog profile set --help"},
 		{name: "profile", arguments: []string{"profile", "unknown"}, help: "worklog profile --help"},
 		{name: "inspect", arguments: []string{"inspect"}, help: "worklog inspect --help"},
 	}

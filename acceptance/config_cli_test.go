@@ -277,6 +277,139 @@ func TestSetupCancellationHasNoSideEffects(t *testing.T) {
 	}
 }
 
+func TestSettingsUpdatesTheOnlyProfileWithoutMovingJournals(t *testing.T) {
+	environment := newEnvironment(t)
+	oldJournal := filepath.Join(environment.root, "old-journal")
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", oldJournal,
+	))
+	newJournal := filepath.Join(environment.home, "journals", "work")
+	input := strings.Join([]string{"en_US.UTF-8", "Asia/Taipei", "~/journals/work", "", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "settings")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Current settings for work:")
+	assertContains(t, result.stdout, "Daily summary:  Built-in (no AI or network)")
+	assertContains(t, result.stdout, "Existing journals will stay in their current folder")
+	if strings.Count(result.stdout, "Save these settings?") != 1 {
+		t.Fatalf("settings confirmation count is not one:\n%s", result.stdout)
+	}
+	show := environment.run(t, "profile", "show", "work")
+	assertSucceeded(t, show)
+	assertContains(t, show.stdout, `"language": "en-US"`)
+	assertContains(t, show.stdout, `"timezone": "Asia/Taipei"`)
+	assertContains(t, show.stdout, `"journal_destination": "`+newJournal+`"`)
+	if _, err := os.Stat(oldJournal); err != nil {
+		t.Fatalf("old journal directory was removed: %v", err)
+	}
+	if _, err := os.Stat(newJournal); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("settings unexpectedly created new journal directory: %v", err)
+	}
+}
+
+func TestSettingsChoosesAmongProfilesAndCancellationHasNoSideEffects(t *testing.T) {
+	environment := newEnvironment(t)
+	for _, name := range []string{"work", "personal"} {
+		assertSucceeded(t, environment.run(t,
+			"profile", "add", name,
+			"--timezone", "UTC",
+			"--language", "zh-TW",
+			"--journal-destination", filepath.Join(environment.root, name+"-journal"),
+		))
+	}
+	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
+	before, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration before settings: %v", err)
+	}
+	newJournal := filepath.Join(environment.root, "cancelled-settings-journal")
+	input := strings.Join([]string{"2", "en-US", "Asia/Taipei", newJournal, "n", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "settings")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "1. personal")
+	assertContains(t, result.stdout, "2. work")
+	assertContains(t, result.stdout, "Settings unchanged.")
+	after, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration after settings: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("cancelled settings changed config bytes")
+	}
+	if _, err := os.Stat(newJournal); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled settings created journal directory: %v", err)
+	}
+}
+
+func TestProfileSetUpdatesOnlyTheNamedProfile(t *testing.T) {
+	environment := newEnvironment(t)
+	for _, name := range []string{"work", "personal"} {
+		assertSucceeded(t, environment.run(t,
+			"profile", "add", name,
+			"--timezone", "UTC",
+			"--language", "zh-TW",
+			"--journal-destination", filepath.Join(environment.root, name+"-journal"),
+		))
+	}
+	newJournal := filepath.Join(environment.home, "journals", "work")
+
+	result := environment.run(t, "profile", "set", "work",
+		"--language", "en_US.UTF-8",
+		"--timezone", "Asia/Taipei",
+		"--journal-destination", "~/journals/work",
+	)
+
+	assertSucceeded(t, result)
+	work := environment.run(t, "profile", "show", "work")
+	assertSucceeded(t, work)
+	assertContains(t, work.stdout, `"language": "en-US"`)
+	assertContains(t, work.stdout, `"timezone": "Asia/Taipei"`)
+	assertContains(t, work.stdout, `"journal_destination": "`+newJournal+`"`)
+	personal := environment.run(t, "profile", "show", "personal")
+	assertSucceeded(t, personal)
+	assertContains(t, personal.stdout, `"language": "zh-TW"`)
+	assertContains(t, personal.stdout, `"timezone": "UTC"`)
+	if _, err := os.Stat(newJournal); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile set unexpectedly created new journal directory: %v", err)
+	}
+}
+
+func TestProfileSetRejectsMissingOrInvalidUpdatesWithoutSaving(t *testing.T) {
+	environment := newEnvironment(t)
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", environment.journalDestination,
+	))
+	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
+	before, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration before invalid updates: %v", err)
+	}
+
+	missing := environment.run(t, "profile", "set", "work")
+	assertFailedWith(t, missing, "at least one of language, timezone, or journal destination is required")
+	invalidTimezone := environment.run(t, "profile", "set", "work", "--timezone", "Not/A-Timezone")
+	assertFailedWith(t, invalidTimezone, "invalid timezone")
+	invalidLanguage := environment.run(t, "profile", "set", "work", "--language", "C")
+	assertFailedWith(t, invalidLanguage, "language is required")
+
+	after, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration after invalid updates: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("invalid profile update changed config bytes")
+	}
+}
+
 func TestProfileAuthorAndRepositoryCommands(t *testing.T) {
 	environment := newEnvironment(t)
 	personalRepository := filepath.Join(environment.root, "personal-repository")

@@ -44,7 +44,9 @@ Discover commands and examples through either help form:
 ```sh
 worklog --help
 worklog setup --help
+worklog settings --help
 worklog profile add --help
+worklog profile set --help
 worklog help repo
 worklog help repo add
 ```
@@ -57,6 +59,10 @@ worklog profile list
 worklog profile show personal
 worklog profile validate
 
+worklog settings personal
+worklog profile set personal --language en-US --timezone Asia/Taipei
+worklog profile set personal --journal-destination ~/Documents/worklog/personal
+
 worklog author add personal developer@example.com
 worklog author list personal
 worklog author validate personal
@@ -66,6 +72,13 @@ worklog repo list
 worklog repo show /path/to/repository
 worklog repo validate
 ```
+
+`settings [profile]` is the guided update path. With one profile it selects it
+automatically; with several profiles it asks which one to change. `profile set`
+offers the same language, IANA timezone, and journal-folder update boundary for
+scripts. Both validate the complete profile before atomically replacing config.
+Changing the journal folder affects future output only and never moves, copies, or
+deletes existing journals.
 
 `repo show` resolves a registered repository to the profile, timezone, language, and
 journal destination that daily commands should use. A repository can belong to only

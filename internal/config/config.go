@@ -298,6 +298,30 @@ func (configuration *Config) AddProfile(profile Profile) error {
 	return configuration.Validate()
 }
 
+func (configuration *Config) ReplaceProfile(profile Profile) error {
+	if err := ValidateProfile(profile); err != nil {
+		return err
+	}
+	index := -1
+	for candidateIndex := range configuration.Profiles {
+		if configuration.Profiles[candidateIndex].Name == profile.Name {
+			index = candidateIndex
+			break
+		}
+	}
+	if index < 0 {
+		return fmt.Errorf("profile %q does not exist", profile.Name)
+	}
+	candidate := *configuration
+	candidate.Profiles = append([]Profile(nil), configuration.Profiles...)
+	candidate.Profiles[index] = profile
+	if err := candidate.Validate(); err != nil {
+		return err
+	}
+	*configuration = candidate
+	return nil
+}
+
 func (configuration *Config) AddAuthor(profileName, author string) error {
 	if err := ValidateAuthor(author); err != nil {
 		return err

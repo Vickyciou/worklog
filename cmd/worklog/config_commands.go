@@ -29,6 +29,8 @@ func (application cli) execute(command string, arguments []string) error {
 	switch command {
 	case "setup":
 		return application.setup(arguments)
+	case "settings":
+		return application.settings(arguments)
 	case "profile":
 		return application.profile(arguments)
 	case "author":
@@ -346,7 +348,7 @@ func (application cli) profile(arguments []string) error {
 		return nil
 	}
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile <add|list|show|validate>; run 'worklog profile --help' for details")
+		return errors.New("usage: worklog profile <add|set|list|show|validate>; run 'worklog profile --help' for details")
 	}
 	switch arguments[0] {
 	case "add":
@@ -355,6 +357,12 @@ func (application cli) profile(arguments []string) error {
 			return nil
 		}
 		return application.addProfile(arguments[1:])
+	case "set":
+		if len(arguments) == 2 && (arguments[1] == "-h" || arguments[1] == "--help") {
+			fmt.Fprint(application.stdout, profileSetHelp)
+			return nil
+		}
+		return application.setProfile(arguments[1:])
 	case "list":
 		return application.listProfiles(arguments[1:])
 	case "show":
@@ -364,6 +372,182 @@ func (application cli) profile(arguments []string) error {
 	default:
 		return fmt.Errorf("unknown profile command %q", arguments[0])
 	}
+}
+
+func (application cli) settings(arguments []string) error {
+	if len(arguments) == 1 && (arguments[0] == "-h" || arguments[0] == "--help") {
+		fmt.Fprint(application.stdout, settingsHelp)
+		return nil
+	}
+	if len(arguments) > 1 {
+		return errors.New("usage: worklog settings [profile]")
+	}
+	configuration, err := config.Load(application.paths)
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(application.stdin)
+	profileName := ""
+	if len(arguments) == 1 {
+		profileName = arguments[0]
+	} else if len(configuration.Profiles) == 1 {
+		profileName = configuration.Profiles[0].Name
+	} else {
+		profileName, err = application.chooseExistingProfile(reader, configuration.Profiles)
+		if err != nil {
+			return err
+		}
+	}
+	profile, found := configuration.Profile(profileName)
+	if !found {
+		return fmt.Errorf("profile %q does not exist", profileName)
+	}
+
+	fmt.Fprintf(application.stdout, `Current settings for %s:
+  Language:       %s
+  Timezone:       %s
+  Journal folder: %s
+  Daily summary:  Built-in (no AI or network)
+
+`, profile.Name, profile.Language, profile.Timezone, profile.JournalDestination)
+	language, err := application.prompt(reader, "Language", profile.Language, true)
+	if err != nil {
+		return err
+	}
+	timezone, err := application.prompt(reader, "Timezone", profile.Timezone, true)
+	if err != nil {
+		return err
+	}
+	destination, err := application.prompt(reader, "Journal folder", profile.JournalDestination, true)
+	if err != nil {
+		return err
+	}
+	candidate, err := updatedProfile(*profile, language, timezone, destination)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(application.stdout, `
+Ready:
+  Profile:        %s
+  Language:       %s
+  Timezone:       %s
+  Journal folder: %s
+  Daily summary:  Built-in (no AI or network)
+
+`, candidate.Name, candidate.Language, candidate.Timezone, candidate.JournalDestination)
+	if candidate.JournalDestination != profile.JournalDestination {
+		fmt.Fprintln(application.stdout, "Existing journals will stay in their current folder; future output uses the new folder.")
+	}
+	confirmed, err := application.confirm(reader, "Save these settings?")
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintln(application.stdout, "Settings unchanged.")
+		return nil
+	}
+	if err := configuration.ReplaceProfile(candidate); err != nil {
+		return err
+	}
+	if err := config.Save(application.paths, configuration); err != nil {
+		return err
+	}
+	fmt.Fprintf(application.stdout, "Updated profile %q.\n", candidate.Name)
+	return nil
+}
+
+func (application cli) chooseExistingProfile(reader *bufio.Reader, profiles []config.Profile) (string, error) {
+	fmt.Fprintln(application.stdout, "Choose a profile:")
+	for index, profile := range profiles {
+		fmt.Fprintf(application.stdout, "  %d. %s\n", index+1, profile.Name)
+	}
+	fmt.Fprintln(application.stdout)
+	choice, err := application.prompt(reader, "Profile", "", true)
+	if err != nil {
+		return "", err
+	}
+	for index, profile := range profiles {
+		if choice == profile.Name || choice == fmt.Sprint(index+1) {
+			return profile.Name, nil
+		}
+	}
+	return "", fmt.Errorf("profile %q does not exist", choice)
+}
+
+func (application cli) setProfile(arguments []string) error {
+	if len(arguments) == 0 {
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>]")
+	}
+	name := arguments[0]
+	flags := flag.NewFlagSet("profile set", flag.ContinueOnError)
+	flags.SetOutput(io.Discard)
+	language := flags.String("language", "", "journal language")
+	timezone := flags.String("timezone", "", "IANA timezone")
+	destination := flags.String("journal-destination", "", "journal destination")
+	if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>]")
+	}
+	specified := map[string]bool{}
+	flags.Visit(func(current *flag.Flag) { specified[current.Name] = true })
+	if len(specified) == 0 {
+		return errors.New("at least one of language, timezone, or journal destination is required")
+	}
+	configuration, err := config.Load(application.paths)
+	if err != nil {
+		return err
+	}
+	profile, found := configuration.Profile(name)
+	if !found {
+		return fmt.Errorf("profile %q does not exist", name)
+	}
+	candidate := *profile
+	if specified["language"] {
+		candidate.Language = *language
+	}
+	if specified["timezone"] {
+		candidate.Timezone = *timezone
+	}
+	if specified["journal-destination"] {
+		candidate.JournalDestination = *destination
+	}
+	candidate, err = updatedProfile(candidate, candidate.Language, candidate.Timezone, candidate.JournalDestination)
+	if err != nil {
+		return err
+	}
+	if err := configuration.ReplaceProfile(candidate); err != nil {
+		return err
+	}
+	if err := config.Save(application.paths, configuration); err != nil {
+		return err
+	}
+	fmt.Fprintf(application.stdout, "Updated profile %q.\n", candidate.Name)
+	return nil
+}
+
+func updatedProfile(profile config.Profile, language, timezone, destination string) (config.Profile, error) {
+	language = normalizeLanguage(language)
+	if language == "" {
+		return config.Profile{}, errors.New("language is required; use a language such as zh-TW or en-US")
+	}
+	timezone, valid := validTimezone(strings.TrimSpace(timezone))
+	if !valid {
+		return config.Profile{}, fmt.Errorf("invalid timezone %q; use an IANA timezone such as Asia/Taipei", strings.TrimSpace(timezone))
+	}
+	destination, err := expandUserPath(destination)
+	if err != nil {
+		return config.Profile{}, err
+	}
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return config.Profile{}, fmt.Errorf("resolve journal folder: %w", err)
+	}
+	profile.Language = language
+	profile.Timezone = timezone
+	profile.JournalDestination = filepath.Clean(destination)
+	if err := config.ValidateProfile(profile); err != nil {
+		return config.Profile{}, err
+	}
+	return profile, nil
 }
 
 func (application cli) addProfile(arguments []string) error {

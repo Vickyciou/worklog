@@ -18,13 +18,15 @@ Usage:
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
   worklog day         Preview and write today's journal
+  worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
   day        Preview and write today's offline journal
   setup      Create the first profile interactively
-  profile    Add, inspect, and validate profiles
+  settings   Update an existing profile interactively
+  profile    Add, update, inspect, and validate profiles
   author     Add, inspect, and validate author identities
   repo       Add, inspect, and validate repository mappings
   help       Show help for worklog
@@ -69,10 +71,11 @@ A profile keeps work and personal repositories, author identities, timezone,
 journal destination, and summary preferences separate.
 
 Usage:
-  worklog profile <add|list|show|validate>
+  worklog profile <add|set|list|show|validate>
 
 Commands:
   add         Add another profile
+  set         Update profile settings with flags
   list        List configured profile names
   show        Print one profile as JSON
   validate    Validate one profile or all profiles
@@ -81,10 +84,56 @@ Examples:
   worklog profile list
   worklog profile show work
   worklog profile add --help
+  worklog profile set --help
 
 Next:
   Add an author identity with worklog author add, then register a repository
   with worklog repo add.
+`
+
+const profileSetHelp = `Update an existing profile with explicit flags.
+
+Usage:
+  worklog profile set <name> [--language <language>] [--timezone <zone>] \
+    [--journal-destination <path>]
+
+At least one setting is required. Language is normalized, timezone must be a
+valid IANA timezone, and ~ in the journal path resolves to the current home.
+Changing the journal destination does not move or delete existing journals.
+
+Examples:
+  worklog profile set work --language en-US
+  worklog profile set work --timezone Asia/Taipei \
+    --journal-destination ~/Documents/worklog/work
+
+Next:
+  Run worklog settings work for the guided form, or worklog profile show work
+  to inspect the saved result.
+`
+
+const settingsHelp = `Update an existing profile with guided prompts.
+
+Usage:
+  worklog settings [profile]
+
+Behavior:
+  A single configured profile is selected automatically. With multiple
+  profiles, choose one from a numbered list or pass its name. Press Enter to
+  keep the current language, IANA timezone, or journal folder.
+
+  Worklog validates the complete candidate before one final confirmation.
+  Changing the journal folder affects future output only; existing journals
+  are not moved, copied, or deleted. Daily summary remains Built-in in M1.
+
+Examples:
+  worklog settings
+  worklog settings work
+
+Next:
+  Run worklog profile show <name> to inspect the saved settings.
+
+Options:
+  -h, --help    Show help for settings
 `
 
 const profileAddHelp = `Add another profile using explicit advanced settings.
@@ -269,7 +318,7 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "worklog %s\n", version)
 		return 0
-	case "setup", "profile", "author", "repo", "inspect", "day":
+	case "setup", "settings", "profile", "author", "repo", "inspect", "day":
 		paths, err := config.DefaultPaths()
 		if err != nil {
 			return commandError(stderr, err)
@@ -291,8 +340,10 @@ func helpText(topic []string) (string, bool) {
 	key := strings.Join(topic, " ")
 	help := map[string]string{
 		"setup":       setupHelp,
+		"settings":    settingsHelp,
 		"profile":     profileHelp,
 		"profile add": profileAddHelp,
+		"profile set": profileSetHelp,
 		"author":      authorHelp,
 		"repo":        repoHelp,
 		"repo add":    repoAddHelp,

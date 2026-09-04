@@ -60,7 +60,7 @@ Getting started:
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview and write today's offline journal
+  day        Preview and write today's journal
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles

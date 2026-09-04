@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -18,6 +19,7 @@ import (
 	"github.com/Vickyciou/worklog/internal/dailysummary"
 	"github.com/Vickyciou/worklog/internal/journal"
 	"github.com/Vickyciou/worklog/internal/redaction"
+	"github.com/Vickyciou/worklog/internal/summarizer"
 )
 
 type cli struct {
@@ -73,6 +75,15 @@ func (application cli) day(arguments []string) error {
 	}
 	facts = redaction.Apply(facts, profile.DeniedLiterals)
 	summary := dailysummary.Fallback(facts)
+	if profile.SummarizerCommand != "" {
+		if err := os.MkdirAll(application.paths.StateHome, 0o700); err != nil {
+			fmt.Fprintln(application.stdout, "Summarizer unavailable (state directory unavailable); using Built-in.")
+		} else if providerSummary, failure := summarizer.Run(context.Background(), profile.SummarizerCommand, facts, application.paths.StateHome, summarizer.ConfiguredTimeout()); failure != "" {
+			fmt.Fprintf(application.stdout, "Summarizer unavailable (%s); using Built-in.\n", failure)
+		} else {
+			summary = providerSummary
+		}
+	}
 	contents, err := journal.Render(profile, facts, summary)
 	if err != nil {
 		return fmt.Errorf("render profile %q: %w", profile.Name, err)

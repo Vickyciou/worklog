@@ -88,16 +88,19 @@ rejected.
 
 ## Generate today's journal
 
-After setup, an M1 configuration with exactly one profile needs no daily flags:
+After setup, a configuration with exactly one profile needs no daily flags:
 
 ```sh
 worklog day
 ```
 
-`day` collects the profile's current local date, builds a deterministic summary,
-and prints the complete Markdown
-preview before asking for confirmation. Only `y` or `yes` writes. The core chooses
-the destination as
+`day` collects the profile's current local date and post-redaction `DailyFacts`.
+With no advanced summarizer command it builds a deterministic summary. When one is
+configured, the command receives only that JSON on stdin and must return a
+schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, empty,
+malformed, or invalid commands fall back deterministically without exposing provider
+stderr. The core prints the complete Markdown preview before asking for confirmation.
+Only `y` or `yes` writes. The core chooses the destination as
 `<journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md`; configured providers never
 choose a path.
 
@@ -125,6 +128,26 @@ code, and capture source metadata. Before output, it replaces profile-specific
 denied literals and common secret, token, hash, path, email, raw diff, and fenced-code
 patterns. This is the exact post-redaction `DailyFacts` boundary used by summarizer
 adapters; `inspect` does not invoke one or write a journal.
+
+## Advanced command summarizers
+
+The first adapter boundary intentionally has no Custom option in guided setup or
+settings. Advanced configuration can provide a command when adding a profile:
+
+```sh
+worklog profile add local --timezone Asia/Taipei --language zh-TW \
+  --journal-destination ~/Documents/worklog/local \
+  --summarizer-command '/path/to/summary-adapter --format json'
+```
+
+Worklog executes the command from its state directory, writes exactly the inspected
+post-redaction `DailyFacts` JSON to stdin, and accepts only one strict
+`DailySummary` JSON object on stdout. The supported document contains `version`,
+`focus`, topic-grouped `completed` items, `decisions`, `next_steps`, and canonical
+public `technologies`; it cannot select a journal path or return final Markdown.
+Credentials must come from the command environment or system credential storage.
+The default timeout is two minutes and can be overridden with
+`WORKLOG_SUMMARIZER_TIMEOUT` using a Go duration such as `30s`.
 
 Configuration and runtime state stay outside the source repository. Defaults follow
 the platform user configuration directory and XDG state directory conventions. Set

@@ -23,7 +23,7 @@ Getting started:
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview and write today's offline journal
+  day        Preview and write today's journal
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles
@@ -227,16 +227,19 @@ Options:
   -h, --help    Show help for inspect
 `
 
-const dayHelp = `Preview and write today's deterministic offline journal.
+const dayHelp = `Preview and write today's journal.
 
 Usage:
   worklog day
 
 Behavior:
-  M1 requires exactly one configured profile. The command collects today's
-  DailyFacts in that profile's timezone, generates a summary without invoking a
-  summarizer, and previews the complete journal and destination before asking
-  for confirmation. The destination is:
+  M2 currently requires exactly one configured profile. The command collects
+  today's post-redaction DailyFacts in that profile's timezone. When an advanced
+  summarizer command is configured, worklog sends that JSON on stdin and accepts
+  only a schema-valid DailySummary JSON object on stdout. Missing, timed-out,
+  failed, empty, malformed, or invalid commands use the deterministic Built-in
+  fallback. Worklog then renders and previews the complete journal. The
+  destination is:
 
     <journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md
 

@@ -4,13 +4,18 @@
 
 **Blocked by:** 05 — 在 summarizer 邊界執行隱私遮蔽；06 — 產生不依賴 AI 的每日工作日誌。
 
-**Status:** ready-for-agent
+**Status:** complete
 
 **Milestone:** M2 — 安全且完整的日常使用
 
-- [ ] Adapter 只從 stdin 接收 post-redaction DailyFacts JSON，並只從 stdout 回傳 DailySummary JSON。
-- [ ] DailySummary schema 驗證 focus、topic-grouped completed items、decisions、next steps 與 public technologies。
-- [ ] Provider 輸出無法直接提供 final Markdown 或選擇 journal destination。
-- [ ] Command 不存在、timeout、nonzero exit、empty stdout、malformed JSON 或 schema-invalid JSON 時使用 deterministic fallback。
-- [ ] Provider credentials 僅能由 adapter 的環境或系統 credential storage 取得，不寫進 worklog config。
-- [ ] Acceptance tests 使用 fake summarizer 分別驗證成功、每種失敗模式與 deterministic result。
+- [x] Adapter 只從 stdin 接收 post-redaction DailyFacts JSON，並只從 stdout 回傳 DailySummary JSON。
+- [x] DailySummary schema 驗證 focus、topic-grouped completed items、decisions、next steps 與 public technologies。
+- [x] Provider 輸出無法直接提供 final Markdown 或選擇 journal destination。
+- [x] Command 不存在、timeout、nonzero exit、empty stdout、malformed JSON 或 schema-invalid JSON 時使用 deterministic fallback。
+- [x] Provider credentials 僅能由 adapter 的環境或系統 credential storage 取得，不寫進 worklog config。
+- [x] Acceptance tests 使用 fake summarizer 分別驗證成功、每種失敗模式與 deterministic result。
+
+## Comments
+
+- 2026-09-04：完成最小 command adapter，從 worklog state directory 執行，stdin 與 `inspect` 完全相同，stdout 僅接受單一嚴格驗證的 `DailySummary` JSON。
+- 2026-09-04：依規劃不新增 Custom guided UI；missing、timeout、nonzero、empty、malformed 與 schema-invalid 均以安全原因提示並使用 deterministic fallback，provider stderr 不外洩。

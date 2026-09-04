@@ -395,7 +395,7 @@ func TestProfileSetRejectsMissingOrInvalidUpdatesWithoutSaving(t *testing.T) {
 	}
 
 	missing := environment.run(t, "profile", "set", "work")
-	assertFailedWith(t, missing, "at least one of language, timezone, or journal destination is required")
+	assertFailedWith(t, missing, "at least one profile setting is required")
 	invalidTimezone := environment.run(t, "profile", "set", "work", "--timezone", "Not/A-Timezone")
 	assertFailedWith(t, invalidTimezone, "invalid timezone")
 	invalidLanguage := environment.run(t, "profile", "set", "work", "--language", "C")

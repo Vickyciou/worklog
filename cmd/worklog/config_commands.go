@@ -17,6 +17,7 @@ import (
 	"github.com/Vickyciou/worklog/internal/dailyfacts"
 	"github.com/Vickyciou/worklog/internal/dailysummary"
 	"github.com/Vickyciou/worklog/internal/journal"
+	"github.com/Vickyciou/worklog/internal/redaction"
 )
 
 type cli struct {
@@ -70,6 +71,7 @@ func (application cli) day(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("collect profile %q: %w", profile.Name, err)
 	}
+	facts = redaction.Apply(facts, profile.DeniedLiterals)
 	summary := dailysummary.Fallback(facts)
 	contents, err := journal.Render(profile, facts, summary)
 	if err != nil {
@@ -134,6 +136,7 @@ func (application cli) inspect(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("inspect profile %q: %w", profile.Name, err)
 	}
+	document = redaction.Apply(document, profile.DeniedLiterals)
 	contents, err := dailyfacts.Encode(document)
 	if err != nil {
 		return err
@@ -476,7 +479,7 @@ func (application cli) chooseExistingProfile(reader *bufio.Reader, profiles []co
 
 func (application cli) setProfile(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>]")
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--deny-literal <value> ...]")
 	}
 	name := arguments[0]
 	flags := flag.NewFlagSet("profile set", flag.ContinueOnError)
@@ -484,13 +487,15 @@ func (application cli) setProfile(arguments []string) error {
 	language := flags.String("language", "", "journal language")
 	timezone := flags.String("timezone", "", "IANA timezone")
 	destination := flags.String("journal-destination", "", "journal destination")
+	var deniedLiterals stringListFlag
+	flags.Var(&deniedLiterals, "deny-literal", "literal to redact before summarization; repeatable")
 	if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>]")
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--deny-literal <value> ...]")
 	}
 	specified := map[string]bool{}
 	flags.Visit(func(current *flag.Flag) { specified[current.Name] = true })
 	if len(specified) == 0 {
-		return errors.New("at least one of language, timezone, or journal destination is required")
+		return errors.New("at least one profile setting is required")
 	}
 	configuration, err := config.Load(application.paths)
 	if err != nil {
@@ -509,6 +514,9 @@ func (application cli) setProfile(arguments []string) error {
 	}
 	if specified["journal-destination"] {
 		candidate.JournalDestination = *destination
+	}
+	if specified["deny-literal"] {
+		candidate.DeniedLiterals = deniedLiterals.values()
 	}
 	candidate, err = updatedProfile(candidate, candidate.Language, candidate.Timezone, candidate.JournalDestination)
 	if err != nil {
@@ -550,9 +558,30 @@ func updatedProfile(profile config.Profile, language, timezone, destination stri
 	return profile, nil
 }
 
+type stringListFlag struct {
+	items []string
+}
+
+func (values *stringListFlag) String() string {
+	return strings.Join(values.items, ",")
+}
+
+func (values *stringListFlag) Set(value string) error {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return errors.New("literal must not be empty")
+	}
+	values.items = append(values.items, value)
+	return nil
+}
+
+func (values stringListFlag) values() []string {
+	return append([]string(nil), values.items...)
+}
+
 func (application cli) addProfile(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--summarizer-command <command>]")
+		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--deny-literal <value> ...] [--summarizer-command <command>]")
 	}
 	name := arguments[0]
 	flags := flag.NewFlagSet("profile add", flag.ContinueOnError)
@@ -561,8 +590,10 @@ func (application cli) addProfile(arguments []string) error {
 	language := flags.String("language", "", "journal language")
 	destination := flags.String("journal-destination", "", "journal destination")
 	summarizer := flags.String("summarizer-command", "", "optional summarizer command")
+	var deniedLiterals stringListFlag
+	flags.Var(&deniedLiterals, "deny-literal", "literal to redact before summarization; repeatable")
 	if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--summarizer-command <command>]")
+		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--deny-literal <value> ...] [--summarizer-command <command>]")
 	}
 	if *timezone == "" || *language == "" || *destination == "" {
 		return errors.New("timezone, language, and journal destination are required")
@@ -571,6 +602,7 @@ func (application cli) addProfile(arguments []string) error {
 	if err != nil {
 		return err
 	}
+	profile.DeniedLiterals = deniedLiterals.values()
 	configuration, err := application.loadOrInitialize()
 	if err != nil {
 		return err

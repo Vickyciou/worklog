@@ -49,6 +49,7 @@ type Profile struct {
 	Timezone           string   `json:"timezone"`
 	Language           string   `json:"language"`
 	JournalDestination string   `json:"journal_destination"`
+	DeniedLiterals     []string `json:"denied_literals,omitempty"`
 	SummarizerCommand  string   `json:"summarizer_command,omitempty"`
 }
 
@@ -203,6 +204,17 @@ func ValidateProfile(profile Profile) error {
 	}
 	if err := ValidateSummarizerCommand(profile.SummarizerCommand); err != nil {
 		return err
+	}
+	deniedLiterals := make(map[string]struct{}, len(profile.DeniedLiterals))
+	for _, literal := range profile.DeniedLiterals {
+		literal = strings.TrimSpace(literal)
+		if literal == "" {
+			return errors.New("denied literals must not be empty")
+		}
+		if _, exists := deniedLiterals[literal]; exists {
+			return errors.New("denied literals must be unique")
+		}
+		deniedLiterals[literal] = struct{}{}
 	}
 	authors := make(map[string]struct{}, len(profile.Authors))
 	for _, author := range profile.Authors {

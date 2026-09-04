@@ -95,11 +95,12 @@ const profileSetHelp = `Update an existing profile with explicit flags.
 
 Usage:
   worklog profile set <name> [--language <language>] [--timezone <zone>] \
-    [--journal-destination <path>]
+    [--journal-destination <path>] [--deny-literal <value> ...]
 
 At least one setting is required. Language is normalized, timezone must be a
 valid IANA timezone, and ~ in the journal path resolves to the current home.
 Changing the journal destination does not move or delete existing journals.
+Repeated --deny-literal flags replace the profile's denied-literal list.
 
 Examples:
   worklog profile set work --language en-US
@@ -140,7 +141,8 @@ const profileAddHelp = `Add another profile using explicit advanced settings.
 
 Usage:
   worklog profile add <name> --timezone <zone> --language <language> \\
-    --journal-destination <path> [--summarizer-command <command>]
+    --journal-destination <path> [--deny-literal <value> ...] \\
+    [--summarizer-command <command>]
 
 Examples:
   worklog profile add personal --timezone Asia/Taipei --language zh-TW \\
@@ -214,7 +216,9 @@ Behavior:
 
   Output is JSON and excludes commit hashes, repository paths, author emails,
   commit bodies, raw diffs, source code, and capture source metadata. Inspect
-  never invokes the configured summarizer or writes a journal.
+  applies the profile's denied literals and common secret redaction, then prints
+  the exact DailyFacts payload an adapter would receive. It never invokes the
+  configured summarizer or writes a journal.
 
 Next:
   Run worklog day to preview today's journal.

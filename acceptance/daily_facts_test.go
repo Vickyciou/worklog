@@ -2,6 +2,7 @@ package acceptance_test
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,71 @@ import (
 	"testing"
 	"time"
 )
+
+func TestInspectEmitsProfileScopedPostRedactionPayload(t *testing.T) {
+	environment := newEnvironment(t)
+	personalRepository := filepath.Join(environment.root, "personal-repository")
+	initializeGitRepository(t, personalRepository, environment.environment)
+	const (
+		workEmail     = "work-redaction@example.invalid"
+		personalEmail = "personal-redaction@example.invalid"
+		targetDate    = "2026-09-03"
+	)
+	profiles := []struct {
+		name       string
+		repository string
+		email      string
+		denied     string
+	}{
+		{name: "work", repository: environment.repository, email: workEmail, denied: "work-policy-marker"},
+		{name: "personal", repository: personalRepository, email: personalEmail, denied: "personal-policy-marker"},
+	}
+	for _, profile := range profiles {
+		assertSucceeded(t, environment.run(t,
+			"profile", "add", profile.name,
+			"--timezone", "UTC",
+			"--language", "en",
+			"--journal-destination", filepath.Join(environment.root, profile.name+"-journal"),
+			"--deny-literal", profile.denied,
+		))
+		assertSucceeded(t, environment.run(t, "author", "add", profile.name, profile.email))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+	}
+
+	workCommit := createCommitAt(t, environment, environment.repository, workEmail,
+		"2026-09-03T09:00:00Z", "2026-09-03T09:00:00Z", "work metadata", "")
+	workEvent := fmt.Sprintf(`{"version":1,"outcome":"work-only-outcome work-policy-marker personal-policy-marker %s","approach":"Use %s with token=fixture-secret-token and developer@example.invalid","next_steps":["diff --git a/private.go b/private.go\n@@ -1 +1 @@\n-secret\n+secret"],"technologies":["Go"]}`,
+		workCommit, environment.repository)
+	assertSucceeded(t, environment.runWithInput(t, workEvent, "capture", environment.repository, workCommit))
+
+	personalCommit := createCommitAt(t, environment, personalRepository, personalEmail,
+		"2026-09-03T10:00:00Z", "2026-09-03T10:00:00Z", "personal metadata", "")
+	personalEvent := `{"version":1,"outcome":"personal-only-outcome personal-policy-marker work-policy-marker","approach":"Authorization: Bearer fixture-bearer-secret","technologies":["Git"]}`
+	assertSucceeded(t, environment.runWithInput(t, personalEvent, "capture", personalRepository, personalCommit))
+
+	work := environment.run(t, "inspect", "work", targetDate)
+	assertSucceeded(t, work)
+	personal := environment.run(t, "inspect", "personal", targetDate)
+	assertSucceeded(t, personal)
+
+	for _, forbidden := range []string{workCommit, environment.repository, workEmail, "work-policy-marker", "fixture-secret-token", "developer@example.invalid", "diff --git", "private.go"} {
+		if strings.Contains(work.stdout, forbidden) {
+			t.Fatalf("work payload contains %q:\n%s", forbidden, work.stdout)
+		}
+	}
+	for _, forbidden := range []string{"personal-policy-marker", "fixture-bearer-secret"} {
+		if strings.Contains(personal.stdout, forbidden) {
+			t.Fatalf("personal payload contains %q:\n%s", forbidden, personal.stdout)
+		}
+	}
+	assertContains(t, work.stdout, "personal-policy-marker")
+	assertContains(t, personal.stdout, "work-policy-marker")
+	assertContains(t, work.stdout, "work-only-outcome")
+	assertContains(t, personal.stdout, "personal-only-outcome")
+	if strings.Contains(work.stdout, "personal-only-outcome") || strings.Contains(personal.stdout, "work-only-outcome") {
+		t.Fatal("inspect mixed profile activity")
+	}
+}
 
 func TestInspectCollectsOnlyTheProfileDailyFactsAtLocalDateBoundaries(t *testing.T) {
 	environment := newEnvironment(t)

@@ -62,6 +62,7 @@ worklog profile validate
 worklog settings personal
 worklog profile set personal --language en-US --timezone Asia/Taipei
 worklog profile set personal --journal-destination ~/Documents/worklog/personal
+worklog profile set personal --deny-literal private-project --deny-literal client-code
 
 worklog author add personal developer@example.com
 worklog author list personal
@@ -120,8 +121,10 @@ identities and uses commit timestamps in the profile timezone, deduplicates comm
 reachable from multiple refs, and ignores merge commits and `refs/notes/worklog`.
 The JSON output includes structured worklog notes and commit-subject fallback facts,
 but excludes hashes, repository paths, author emails, commit bodies, diffs, source
-code, and capture source metadata. `inspect` does not invoke a summarizer or write a
-journal.
+code, and capture source metadata. Before output, it replaces profile-specific
+denied literals and common secret, token, hash, path, email, raw diff, and fenced-code
+patterns. This is the exact post-redaction `DailyFacts` boundary used by summarizer
+adapters; `inspect` does not invoke one or write a journal.
 
 Configuration and runtime state stay outside the source repository. Defaults follow
 the platform user configuration directory and XDG state directory conventions. Set

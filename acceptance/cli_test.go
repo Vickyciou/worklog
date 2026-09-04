@@ -191,7 +191,9 @@ Behavior:
 
   Output is JSON and excludes commit hashes, repository paths, author emails,
   commit bodies, raw diffs, source code, and capture source metadata. Inspect
-  never invokes the configured summarizer or writes a journal.
+  applies the profile's denied literals and common secret redaction, then prints
+  the exact DailyFacts payload an adapter would receive. It never invokes the
+  configured summarizer or writes a journal.
 
 Next:
   Run worklog day to preview today's journal.

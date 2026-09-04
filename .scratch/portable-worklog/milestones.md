@@ -17,7 +17,9 @@ Assign one ticket to one agent context. A ticket joins the technical frontier on
 3. 04 — 收集並檢查單一 profile 的每日事實；12 — 整合中央 gen-commit
 4. 06 — 產生不依賴 AI 的每日工作日誌
 
-M1 完成條件：01、02、03、04、06、12 的 acceptance criteria 全部通過。初始 frontier 只有 01。
+**Status:** complete（2026-09-04）
+
+M1 完成條件已達成：01、02、03、04、06、12 的 acceptance criteria 全部通過，包括中央 `gen-commit` 至 daily collection 的臨時 repository 端到端驗證。
 
 ## M2 — 安全且完整的日常使用
 

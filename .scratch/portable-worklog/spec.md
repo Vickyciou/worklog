@@ -14,7 +14,7 @@ Status: ready-for-agent
 
 Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-commit` skill 可繼續透過 Git 與 symlink 分享給 Codex、Claude Code 或其他可執行 shell command 的 agent；公司專用 commit skills 留在各自公司 repository，只選擇性呼叫相同 contract，不進入通用核心。
 
-首次使用由互動式 setup 完成 profile、repositories、日誌目的地與 summarizer 設定。日常使用只需正常 commit，然後執行 `worklog day`。若同一天有多個 profile 的活動，工具自動分開產生多份日誌，不把資料放入同一次 summarizer request。重新執行時只 refresh 受管理的生成區塊，保留使用者人工補充。
+首次使用由低理解成本的互動式 setup 完成。Setup 從目前 Git repository 與作業系統自動取得 author email、timezone 與 language；使用者只需從有用途說明的 Work、Personal 或 Custom profile 選項中選擇，確認可編輯的 repository 與 journal destination 預設值，並選擇摘要方式。日常使用只需正常 commit，然後執行 `worklog day`。若同一天有多個 profile 的活動，工具自動分開產生多份日誌，不把資料放入同一次 summarizer request。重新執行時只 refresh 受管理的生成區塊，保留使用者人工補充。
 
 ## User Stories
 
@@ -63,12 +63,22 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 43. As a maintainer, I want the current Bash implementation preserved until behavior parity is demonstrated, so that migration is reversible.
 44. As a maintainer, I want the executable switch to happen only after acceptance tests pass, so that the existing daily workflow is not disrupted.
 45. As a former employee, I want tool code to be portable while employer profiles and notes remain behind, so that legal and privacy boundaries are respected.
+46. As a new user, I want setup to infer facts the computer already knows, so that I only answer questions that require a human choice.
+47. As a new user, I want profile choices described with concrete Work, Personal and Custom examples, so that I do not need to understand the configuration model first.
+48. As a subscriber to a supported AI coding CLI, I want worklog to reuse my provider-managed Codex or Claude Code session, so that worklog never asks me to copy an API key.
+49. As a user seeking help, I want task-oriented command help with examples and exact recovery actions, so that I do not need to inspect configuration files.
+50. As a user, I want to change an existing profile's language, timezone, journal destination and daily summary preference without editing JSON, so that settings can evolve safely after setup.
 
 ## Implementation Decisions
 
 - Implement the core as a Go CLI and distribute platform-specific single binaries. Runtime behavior must not depend on an installed Go toolchain, Python environment, or modern Bash.
 - Keep source code, schemas, prompts, generic integrations, examples and tests under Git. Store user profiles, caches, state, credentials and captured work data outside the source repository.
 - Provide `setup`, `profile`, `repo`, `capture`, `inspect`, `day` and `doctor` command families. Optimize the everyday path so that `worklog day` requires no flags after setup.
+- Keep setup progressively disclosed. Prompt for a Work, Personal or Custom profile; show the current Git root and a profile-specific journal folder as editable defaults; infer author email, IANA timezone and language; ask for an inferred value only when it cannot be resolved safely; then show one final confirmation before writing.
+- Provide `settings [profile]` as the guided path for changing an existing profile and `profile set` as the scriptable advanced contract. Validate the complete candidate config before atomic replacement; never move existing journals as a side effect of changing their destination.
+- Treat `work`, `personal` and custom profile names as routing labels with identical capabilities. They do not silently change privacy or collection behavior.
+- Present summarization as a user goal rather than a raw command. Offer deterministic built-in output by default and, once the command adapter is available, offer executable-discovered Codex and Claude Code presets. The first preset release has no user-facing Custom command option. A preset simply invokes the provider CLI and lets it reuse its own session; worklog never probes, imports, copies or stores provider credentials, and falls back deterministically when invocation fails.
+- Keep `capture`, author identities, repository mappings and raw summarizer commands available as advanced contracts, but omit them from the shortest first-run explanation. Root help leads with setup, daily generation, adding the current repository, settings and diagnostics; detailed help remains available for every command and subcommand.
 - Treat a profile as a routing and privacy boundary. Each profile owns repository allowlists, author identities, timezone, journal destination, redaction policy, summarizer and rendering preferences.
 - Require each registered repository to resolve to exactly one profile. Reject overlapping mappings during setup and doctor checks.
 - When a date contains activity from multiple profiles, process each profile in an independent collection, redaction, summarization, preview and write cycle. Never construct a cross-profile summarizer payload.
@@ -100,6 +110,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Use one primary acceptance seam: execute the compiled `worklog` CLI as an external process against isolated temporary homes, Git repositories, profiles, journal destinations and fake summarizer commands.
 - Assert observable behavior rather than internal functions. Tests inspect process exit status, stdout and stderr contracts, Git notes, adapter payloads, generated files and preserved manual content.
 - Cover setup, repository registration, capture, idempotency, conflict rejection, profile routing, multi-profile separation, payload inspection, redaction, provider success, provider timeout or failure, invalid summary fallback, deterministic rendering, historical dates and refresh.
+- Cover setup inference and fallback prompts with isolated Git config, locale and timezone fixtures. Assert that pressing Enter accepts repository and journal defaults, custom values remain possible, cancellation writes nothing, and help works through both `<command> --help` and `help <command> [subcommand]` forms.
 - Verify privacy at the adapter boundary by using a fake summarizer that fails if it receives a hash, unregistered repository data, path, email, configured denied literal or fixture secret.
 - Verify profile isolation with same-day commits in work and personal fixture repositories. The fake adapter must receive two separate requests and each journal destination must contain only its own facts.
 - Verify managed refresh by adding manual content outside the generated block, rerunning the date and asserting byte-for-byte preservation of the manual content.

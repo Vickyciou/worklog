@@ -23,15 +23,15 @@ M1 完成條件：01、02、03、04、06、12 的 acceptance criteria 全部通�
 
 **Outcome:** 使用者可以安全連接任意 command summarizer，隔離同一天的多個 profiles，refresh 歷史日誌並診斷設定問題。
 
-**Tickets:** 05、07、08、09、10
+**Tickets:** 05、07、08、09、10、15、16、17
 
 **Assignment waves:**
 
-1. 05 — 在 summarizer 邊界執行隱私遮蔽；09 — 安全 refresh 歷史日誌
-2. 07 — 連接任意 command summarizer
-3. 08 — 分開處理同一天的多個 profiles；10 — 診斷設定與隱私邊界
+1. 05 — 在 summarizer 邊界執行隱私遮蔽；09 — 安全 refresh 歷史日誌；15 — 精簡 setup 並提供任務導向 help
+2. 07 — 連接任意 command summarizer；17 — 修改既有 profile settings
+3. 08 — 分開處理同一天的多個 profiles；10 — 診斷設定與隱私邊界；16 — 提供 AI CLI 摘要 presets
 
-M2 預定在 M1 完成後開始。M2 完成條件：05、07、08、09、10 的 acceptance criteria 全部通過。
+M2 預定在 M1 完成後開始。M2 完成條件：05、07、08、09、10、15、16、17 的 acceptance criteria 全部通過。
 
 ## M3 — 發布與正式遷移
 

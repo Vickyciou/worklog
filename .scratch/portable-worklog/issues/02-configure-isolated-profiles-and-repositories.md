@@ -8,6 +8,8 @@
 
 **Milestone:** M1 — 最小可用流程
 
+**Follow-up:** 15 將已完成的低階設定 contract 包裝成精簡 setup 與一致 help；16 在 command adapter 可用後加入已登入 AI CLI 選項。
+
 - [ ] 互動式 setup 可以建立包含時區、語言、journal destination 與可選 summarizer 設定的第一個 profile。
 - [ ] 使用者可以新增、檢視及驗證 profile、author identities 與明確的 repository allowlist。
 - [ ] 每個 repository 只能屬於一個 profile；重複或重疊 mapping 會停止並說明衝突。

@@ -239,9 +239,10 @@ Usage:
   worklog day [YYYY-MM-DD] [--refresh]
 
 Behavior:
-  M2 currently requires exactly one configured profile. With no date, the command
-  uses today in that profile's timezone; YYYY-MM-DD selects a historical date.
-  It collects post-redaction DailyFacts for that date. Codex, Claude
+  Worklog discovers every profile with activity on the requested day. With no date,
+  each profile uses today in its own timezone; YYYY-MM-DD selects a historical date.
+  Each active profile gets a separate post-redaction DailyFacts payload, summary,
+  preview, confirmation, and journal destination. Codex, Claude
   Code, and an advanced summarizer command all receive that boundary and must
   return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
   empty, malformed, or invalid providers use the deterministic Built-in fallback.
@@ -254,6 +255,9 @@ Behavior:
   when its destination is absent. Existing journals are refused unless --refresh
   is explicit. Refresh requires exactly one valid managed block, previews its diff,
   preserves every byte outside it, and atomically replaces the file after confirmation.
+
+  Profiles without registered repositories or author identities stop before any
+  provider call or write and include the command needed to repair the mapping.
 
 Next:
   Run worklog inspect <profile> first when you want to review the source facts.

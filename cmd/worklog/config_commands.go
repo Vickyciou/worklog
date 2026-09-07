@@ -62,57 +62,106 @@ func (application cli) day(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	if len(configuration.Profiles) != 1 {
-		return fmt.Errorf("day requires exactly one configured profile in M1; found %d", len(configuration.Profiles))
-	}
-	profile := configuration.Profiles[0]
-	date := requestedDate
-	if date == "" {
-		date, err = dailyfacts.CurrentDate(profile, time.Now())
-		if err != nil {
-			return err
-		}
-	}
-	destination, err := journal.Path(profile, date)
+	plans, err := application.planActiveProfiles(configuration, requestedDate, refresh)
 	if err != nil {
 		return err
 	}
-	var existing []byte
-	if refresh {
-		existing, err = os.ReadFile(destination)
-		if errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("refresh journal %q: journal does not exist; omit --refresh to generate it", destination)
+	if len(plans) == 0 {
+		fmt.Fprintln(application.stdout, "No profile activity found; no journals to write.")
+		return nil
+	}
+	reader := bufio.NewReader(application.stdin)
+	for index := range plans {
+		if index > 0 {
+			fmt.Fprintln(application.stdout)
 		}
+		if err := application.runDayPlan(reader, plans[index], refresh, len(plans) > 1); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+type dayPlan struct {
+	profile     config.Profile
+	date        string
+	facts       dailyfacts.Document
+	destination string
+	existing    []byte
+}
+
+func (application cli) planActiveProfiles(configuration config.Config, requestedDate string, refresh bool) ([]dayPlan, error) {
+	plans := make([]dayPlan, 0, len(configuration.Profiles))
+	destinations := make(map[string]string)
+	for _, profile := range configuration.Profiles {
+		if len(profile.Repositories) == 0 {
+			return nil, fmt.Errorf("profile %q has no registered repositories; run 'worklog repo add %s <path>'", profile.Name, profile.Name)
+		}
+		if len(profile.Authors) == 0 {
+			return nil, fmt.Errorf("profile %q has no author identities; run 'worklog author add %s <email>'", profile.Name, profile.Name)
+		}
+		date := requestedDate
+		if date == "" {
+			var err error
+			date, err = dailyfacts.CurrentDate(profile, time.Now())
+			if err != nil {
+				return nil, err
+			}
+		}
+		facts, err := dailyfacts.Collect(profile, date)
 		if err != nil {
-			return fmt.Errorf("read journal %q for refresh: %w", destination, err)
+			return nil, fmt.Errorf("collect profile %q: %w; verify mappings with 'worklog repo validate'", profile.Name, err)
 		}
-		if err := journal.ValidateManaged(existing); err != nil {
-			return fmt.Errorf("refuse journal refresh %q: %w", destination, err)
+		if len(facts.Facts) == 0 {
+			continue
 		}
-	} else if err := journal.CheckAvailable(destination); err != nil {
-		return fmt.Errorf("refuse journal destination %q: %w", destination, err)
+		facts = redaction.Apply(facts, profile.DeniedLiterals)
+		destination, err := journal.Path(profile, date)
+		if err != nil {
+			return nil, err
+		}
+		if owner, exists := destinations[destination]; exists {
+			return nil, fmt.Errorf("journal destination %q is ambiguous for active profiles %q and %q; update one with 'worklog profile set <name> --journal-destination <path>'", destination, owner, profile.Name)
+		}
+		destinations[destination] = profile.Name
+
+		plan := dayPlan{profile: profile, date: date, facts: facts, destination: destination}
+		if refresh {
+			plan.existing, err = os.ReadFile(destination)
+			if errors.Is(err, os.ErrNotExist) {
+				return nil, fmt.Errorf("refresh journal %q: journal does not exist; omit --refresh to generate it", destination)
+			}
+			if err != nil {
+				return nil, fmt.Errorf("read journal %q for refresh: %w", destination, err)
+			}
+			if err := journal.ValidateManaged(plan.existing); err != nil {
+				return nil, fmt.Errorf("refuse journal refresh %q: %w", destination, err)
+			}
+		} else if err := journal.CheckAvailable(destination); err != nil {
+			return nil, fmt.Errorf("refuse journal destination %q: %w", destination, err)
+		}
+		plans = append(plans, plan)
 	}
-	facts, err := dailyfacts.Collect(profile, date)
-	if err != nil {
-		return fmt.Errorf("collect profile %q: %w", profile.Name, err)
-	}
-	facts = redaction.Apply(facts, profile.DeniedLiterals)
-	summary := dailysummary.Fallback(facts)
-	if profile.EffectiveSummaryMode() != config.SummaryBuiltIn {
+	return plans, nil
+}
+
+func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, showProfile bool) error {
+	summary := dailysummary.Fallback(plan.facts)
+	if plan.profile.EffectiveSummaryMode() != config.SummaryBuiltIn {
 		if err := os.MkdirAll(application.paths.StateHome, 0o700); err != nil {
 			fmt.Fprintln(application.stdout, "Summarizer unavailable (state directory unavailable); using Built-in.")
 		} else {
 			var providerSummary dailysummary.Document
 			var failure summarizer.Failure
-			if profile.EffectiveSummaryMode() == config.SummaryCustom {
-				providerSummary, failure = summarizer.Run(context.Background(), profile.SummarizerCommand, facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
+			if plan.profile.EffectiveSummaryMode() == config.SummaryCustom {
+				providerSummary, failure = summarizer.Run(context.Background(), plan.profile.SummarizerCommand, plan.facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
 			} else {
-				providerSummary, failure = summarizer.RunPreset(context.Background(), profile.EffectiveSummaryMode(), facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
+				providerSummary, failure = summarizer.RunPreset(context.Background(), plan.profile.EffectiveSummaryMode(), plan.facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
 			}
 			if failure != "" {
 				label := "Summarizer"
-				if profile.EffectiveSummaryMode() != config.SummaryCustom {
-					label = dailySummaryLabel(profile.EffectiveSummaryMode())
+				if plan.profile.EffectiveSummaryMode() != config.SummaryCustom {
+					label = dailySummaryLabel(plan.profile.EffectiveSummaryMode())
 				}
 				fmt.Fprintf(application.stdout, "%s unavailable (%s); using Built-in.\n", label, failure)
 			} else {
@@ -120,31 +169,39 @@ func (application cli) day(arguments []string) error {
 			}
 		}
 	}
-	contents, err := journal.Render(profile, facts, summary)
+	contents, err := journal.Render(plan.profile, plan.facts, summary)
 	if err != nil {
-		return fmt.Errorf("render profile %q: %w", profile.Name, err)
+		return fmt.Errorf("render profile %q: %w", plan.profile.Name, err)
 	}
 
 	prompt := "Write this journal? [y/N]: "
 	if refresh {
 		var difference []byte
-		contents, difference, err = journal.Refresh(existing, contents)
+		contents, difference, err = journal.Refresh(plan.existing, contents)
 		if err != nil {
-			return fmt.Errorf("prepare journal refresh %q: %w", destination, err)
+			return fmt.Errorf("prepare journal refresh %q: %w", plan.destination, err)
 		}
-		fmt.Fprintf(application.stdout, "Journal refresh diff: %s\n\n", destination)
+		if showProfile {
+			fmt.Fprintf(application.stdout, "Journal refresh diff [%s]: %s\n\n", plan.profile.Name, plan.destination)
+		} else {
+			fmt.Fprintf(application.stdout, "Journal refresh diff: %s\n\n", plan.destination)
+		}
 		if _, err := application.stdout.Write(difference); err != nil {
 			return err
 		}
 		prompt = "Refresh this journal? [y/N]: "
 	} else {
-		fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", destination)
+		if showProfile {
+			fmt.Fprintf(application.stdout, "Journal preview [%s]: %s\n\n", plan.profile.Name, plan.destination)
+		} else {
+			fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", plan.destination)
+		}
 		if _, err := application.stdout.Write(contents); err != nil {
 			return err
 		}
 	}
 	fmt.Fprint(application.stdout, "\n"+prompt)
-	answer, err := bufio.NewReader(application.stdin).ReadString('\n')
+	answer, err := reader.ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("read confirmation: %w", err)
 	}
@@ -157,19 +214,19 @@ func (application cli) day(arguments []string) error {
 		return errors.New("journal write not confirmed")
 	}
 	if refresh {
-		err = journal.ReplaceAtomic(destination, existing, contents)
+		err = journal.ReplaceAtomic(plan.destination, plan.existing, contents)
 	} else {
-		err = journal.WriteAtomic(destination, contents)
+		err = journal.WriteAtomic(plan.destination, contents)
 	}
 	if err != nil {
 		fmt.Fprintln(application.stdout)
-		return fmt.Errorf("write journal %q: %w", destination, err)
+		return fmt.Errorf("write journal %q: %w", plan.destination, err)
 	}
 	verb := "Wrote"
 	if refresh {
 		verb = "Refreshed"
 	}
-	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, destination)
+	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, plan.destination)
 	return nil
 }
 

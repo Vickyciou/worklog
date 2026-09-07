@@ -144,7 +144,7 @@ technologies:
 	}
 }
 
-func TestDayRejectsAmbiguousProfilesWithoutWriting(t *testing.T) {
+func TestDayStopsBeforeWritingWhenProfileMappingIsMissing(t *testing.T) {
 	environment := newEnvironment(t)
 	for _, profile := range []string{"personal", "work"} {
 		assertSucceeded(t, environment.run(t,
@@ -156,9 +156,9 @@ func TestDayRejectsAmbiguousProfilesWithoutWriting(t *testing.T) {
 	}
 
 	result := environment.runWithInput(t, "yes\n", "day")
-	assertFailedWith(t, result, "day requires exactly one configured profile in M1; found 2")
+	assertFailedWith(t, result, `profile "personal" has no registered repositories`, "worklog repo add personal <path>")
 	if strings.Contains(result.stdout, "Journal preview:") {
-		t.Fatal("ambiguous day produced a preview")
+		t.Fatal("incomplete profile produced a preview")
 	}
 }
 
@@ -206,12 +206,18 @@ func TestDayNeutralizesCapturedManagedMarkersInsideMarkdownText(t *testing.T) {
 
 func TestDayRechecksDestinationAfterPreviewAndPreservesExistingFile(t *testing.T) {
 	environment := newEnvironment(t)
+	const email = "racing-day@example.invalid"
 	assertSucceeded(t, environment.run(t,
 		"profile", "add", "work",
 		"--timezone", "UTC",
 		"--language", "zh-TW",
 		"--journal-destination", environment.journalDestination,
 	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	now := time.Now().UTC().Truncate(time.Second)
+	createCommitAt(t, environment, environment.repository, email,
+		now.Format(time.RFC3339), now.Format(time.RFC3339), "racing day activity", "")
 	date := time.Now().UTC().Format(time.DateOnly)
 	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
 
@@ -360,13 +366,19 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 
 func TestDayRefreshRefusesJournalWithoutValidManagedBoundaries(t *testing.T) {
 	environment := newEnvironment(t)
+	const email = "invalid-refresh@example.invalid"
 	assertSucceeded(t, environment.run(t,
 		"profile", "add", "work",
 		"--timezone", "UTC",
 		"--language", "zh-TW",
 		"--journal-destination", environment.journalDestination,
 	))
-	date := time.Now().UTC().AddDate(0, 0, -2).Format(time.DateOnly)
+	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	commitTime := time.Now().UTC().AddDate(0, 0, -2).Truncate(time.Second)
+	date := commitTime.Format(time.DateOnly)
+	createCommitAt(t, environment, environment.repository, email,
+		commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), "invalid refresh activity", "")
 	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
 	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
 		t.Fatalf("create historical journal directory: %v", err)

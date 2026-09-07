@@ -91,7 +91,7 @@ rejected.
 
 ## Generate or refresh a daily journal
 
-After setup, a configuration with exactly one profile needs no daily flags:
+After setup, daily use needs no profile flags:
 
 ```sh
 worklog day
@@ -99,7 +99,11 @@ worklog day 2026-09-02
 worklog day 2026-09-02 --refresh
 ```
 
-`day` collects the profile's current local date and post-redaction `DailyFacts`.
+`day` discovers every profile with activity, using each profile's current local date
+when no date is passed. Each profile gets its own post-redaction `DailyFacts`, summary
+request, preview, confirmation, and journal destination; profile facts are never
+combined. Profiles without registered repositories or author identities stop before
+any provider invocation or write and report the command needed to repair the mapping.
 Built-in creates a deterministic summary. Codex, Claude Code, and an advanced
 summarizer command all use the same stdin/stdout boundary and must return a
 schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, empty,

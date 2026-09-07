@@ -49,9 +49,10 @@ Behavior:
   environment or operating system. If a required value cannot be detected,
   setup asks only for that value.
 
-  Setup shows the resolved settings once before writing. The M1 summary mode is
-  Built-in, which uses no AI or network. Cancelling writes no configuration,
-  state, or journal directory.
+  Setup offers Built-in plus installed Codex and Claude Code CLIs. Built-in uses
+  no AI or network; provider presets reuse their CLI's current session without
+  probing credentials. Setup shows resolved settings once before writing.
+  Cancelling writes no configuration, state, or journal directory.
 
 Examples:
   cd /path/to/repository
@@ -95,7 +96,9 @@ const profileSetHelp = `Update an existing profile with explicit flags.
 
 Usage:
   worklog profile set <name> [--language <language>] [--timezone <zone>] \
-    [--journal-destination <path>] [--deny-literal <value> ...]
+    [--journal-destination <path>] \
+    [--daily-summary <built-in|codex|claude-code>] \
+    [--deny-literal <value> ...]
 
 At least one setting is required. Language is normalized, timezone must be a
 valid IANA timezone, and ~ in the journal path resolves to the current home.
@@ -124,7 +127,8 @@ Behavior:
 
   Worklog validates the complete candidate before one final confirmation.
   Changing the journal folder affects future output only; existing journals
-  are not moved, copied, or deleted. Daily summary remains Built-in in M1.
+  are not moved, copied, or deleted. Daily summary offers Built-in plus installed
+  Codex and Claude Code CLIs; provider sessions remain owned by those CLIs.
 
 Examples:
   worklog settings
@@ -141,7 +145,9 @@ const profileAddHelp = `Add another profile using explicit advanced settings.
 
 Usage:
   worklog profile add <name> --timezone <zone> --language <language> \\
-    --journal-destination <path> [--deny-literal <value> ...] \\
+    --journal-destination <path> \\
+    [--daily-summary <built-in|codex|claude-code>] \\
+    [--deny-literal <value> ...] \\
     [--summarizer-command <command>]
 
 Examples:
@@ -234,11 +240,11 @@ Usage:
 
 Behavior:
   M2 currently requires exactly one configured profile. The command collects
-  today's post-redaction DailyFacts in that profile's timezone. When an advanced
-  summarizer command is configured, worklog sends that JSON on stdin and accepts
-  only a schema-valid DailySummary JSON object on stdout. Missing, timed-out,
-  failed, empty, malformed, or invalid commands use the deterministic Built-in
-  fallback. Worklog then renders and previews the complete journal. The
+  today's post-redaction DailyFacts in that profile's timezone. Codex, Claude
+  Code, and an advanced summarizer command all receive that boundary and must
+  return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
+  empty, malformed, or invalid providers use the deterministic Built-in fallback.
+  Worklog then renders and previews the complete journal. The
   destination is:
 
     <journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md

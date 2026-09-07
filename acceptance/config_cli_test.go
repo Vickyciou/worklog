@@ -257,7 +257,7 @@ func TestSetupCancellationHasNoSideEffects(t *testing.T) {
 	})
 	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
 	journal := filepath.Join(environment.root, "cancelled-journal")
-	input := strings.Join([]string{"1", "", journal, "n", ""}, "\n")
+	input := strings.Join([]string{"1", "", journal, "", "n", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "setup")
 
@@ -327,7 +327,7 @@ func TestSettingsChoosesAmongProfilesAndCancellationHasNoSideEffects(t *testing.
 		t.Fatalf("read configuration before settings: %v", err)
 	}
 	newJournal := filepath.Join(environment.root, "cancelled-settings-journal")
-	input := strings.Join([]string{"2", "en-US", "Asia/Taipei", newJournal, "n", ""}, "\n")
+	input := strings.Join([]string{"2", "en-US", "Asia/Taipei", newJournal, "", "n", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "settings")
 

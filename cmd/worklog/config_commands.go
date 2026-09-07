@@ -75,13 +75,26 @@ func (application cli) day(arguments []string) error {
 	}
 	facts = redaction.Apply(facts, profile.DeniedLiterals)
 	summary := dailysummary.Fallback(facts)
-	if profile.SummarizerCommand != "" {
+	if profile.EffectiveSummaryMode() != config.SummaryBuiltIn {
 		if err := os.MkdirAll(application.paths.StateHome, 0o700); err != nil {
 			fmt.Fprintln(application.stdout, "Summarizer unavailable (state directory unavailable); using Built-in.")
-		} else if providerSummary, failure := summarizer.Run(context.Background(), profile.SummarizerCommand, facts, application.paths.StateHome, summarizer.ConfiguredTimeout()); failure != "" {
-			fmt.Fprintf(application.stdout, "Summarizer unavailable (%s); using Built-in.\n", failure)
 		} else {
-			summary = providerSummary
+			var providerSummary dailysummary.Document
+			var failure summarizer.Failure
+			if profile.EffectiveSummaryMode() == config.SummaryCustom {
+				providerSummary, failure = summarizer.Run(context.Background(), profile.SummarizerCommand, facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
+			} else {
+				providerSummary, failure = summarizer.RunPreset(context.Background(), profile.EffectiveSummaryMode(), facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
+			}
+			if failure != "" {
+				label := "Summarizer"
+				if profile.EffectiveSummaryMode() != config.SummaryCustom {
+					label = dailySummaryLabel(profile.EffectiveSummaryMode())
+				}
+				fmt.Fprintf(application.stdout, "%s unavailable (%s); using Built-in.\n", label, failure)
+			} else {
+				summary = providerSummary
+			}
 		}
 	}
 	contents, err := journal.Render(profile, facts, summary)
@@ -248,6 +261,10 @@ func (application cli) setup(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("resolve journal folder: %w", err)
 	}
+	summaryMode, err := application.chooseDailySummary(reader, config.SummaryBuiltIn)
+	if err != nil {
+		return err
+	}
 
 	fmt.Fprintf(application.stdout, `
 Ready:
@@ -257,9 +274,9 @@ Ready:
   Timezone:       %s
   Language:       %s
   Journal folder: %s
-  Daily summary:  Built-in (no AI or network)
+  Daily summary:  %s
 
-`, name, repositoryRoot, author, timezone, language, destination)
+`, name, repositoryRoot, author, timezone, language, destination, dailySummaryLabel(summaryMode))
 	confirmed, err := application.confirm(reader, "Create these settings?")
 	if err != nil {
 		return err
@@ -273,6 +290,7 @@ Ready:
 	if err != nil {
 		return err
 	}
+	profile.SummaryMode = summaryMode
 	configuration := config.Config{Version: config.Version, Profiles: []config.Profile{profile}}
 	if err := configuration.AddAuthor(profile.Name, strings.TrimSpace(author)); err != nil {
 		return err
@@ -317,6 +335,73 @@ func (application cli) chooseInitialProfile(reader *bufio.Reader) (string, error
 		return name, nil
 	default:
 		return "", errors.New("profile must be 1 (Work), 2 (Personal), or 3 (Custom)")
+	}
+}
+
+func (application cli) chooseDailySummary(reader *bufio.Reader, current string) (string, error) {
+	fmt.Fprintln(application.stdout, "Daily summary (AI is optional):")
+	fmt.Fprintln(application.stdout, "  1. Built-in    Deterministic; no AI or network")
+	for index, preset := range []struct {
+		mode       string
+		label      string
+		executable string
+	}{
+		{mode: config.SummaryCodex, label: "Codex", executable: "codex"},
+		{mode: config.SummaryClaudeCode, label: "Claude Code", executable: "claude"},
+	} {
+		availability := "available; uses the CLI's current session"
+		if _, err := exec.LookPath(preset.executable); err != nil {
+			availability = "unavailable; executable not found"
+		}
+		fmt.Fprintf(application.stdout, "  %d. %-11s %s\n", index+2, preset.label, availability)
+	}
+	fmt.Fprintln(application.stdout)
+	defaultValue := map[string]string{config.SummaryBuiltIn: "1", config.SummaryCodex: "2", config.SummaryClaudeCode: "3"}[current]
+	if defaultValue == "" {
+		defaultValue = "1"
+	}
+	choice, err := application.prompt(reader, "Daily summary", defaultValue, true)
+	if err != nil {
+		return "", err
+	}
+	var mode string
+	switch strings.ToLower(strings.TrimSpace(choice)) {
+	case "1", "built-in", "builtin":
+		mode = config.SummaryBuiltIn
+	case "2", "codex":
+		mode = config.SummaryCodex
+	case "3", "claude", "claude-code", "claude code":
+		mode = config.SummaryClaudeCode
+	default:
+		return "", errors.New("daily summary must be 1 (Built-in), 2 (Codex), or 3 (Claude Code)")
+	}
+	if err := validateSummaryModeAvailable(mode); err != nil {
+		return "", err
+	}
+	return mode, nil
+}
+
+func validateSummaryModeAvailable(mode string) error {
+	executable := map[string]string{config.SummaryCodex: "codex", config.SummaryClaudeCode: "claude"}[mode]
+	if executable == "" {
+		return nil
+	}
+	if _, err := exec.LookPath(executable); err != nil {
+		return fmt.Errorf("%s daily summary is unavailable because %q was not found; choose Built-in or install the CLI", dailySummaryLabel(mode), executable)
+	}
+	return nil
+}
+
+func dailySummaryLabel(mode string) string {
+	switch mode {
+	case config.SummaryCodex:
+		return "Codex (uses the CLI's current session)"
+	case config.SummaryClaudeCode:
+		return "Claude Code (uses the CLI's current session)"
+	case config.SummaryCustom:
+		return "Custom command (advanced configuration)"
+	default:
+		return "Built-in (no AI or network)"
 	}
 }
 
@@ -421,9 +506,9 @@ func (application cli) settings(arguments []string) error {
   Language:       %s
   Timezone:       %s
   Journal folder: %s
-  Daily summary:  Built-in (no AI or network)
+  Daily summary:  %s
 
-`, profile.Name, profile.Language, profile.Timezone, profile.JournalDestination)
+`, profile.Name, profile.Language, profile.Timezone, profile.JournalDestination, dailySummaryLabel(profile.EffectiveSummaryMode()))
 	language, err := application.prompt(reader, "Language", profile.Language, true)
 	if err != nil {
 		return err
@@ -436,9 +521,22 @@ func (application cli) settings(arguments []string) error {
 	if err != nil {
 		return err
 	}
+	summaryMode := profile.EffectiveSummaryMode()
+	if summaryMode == config.SummaryCustom {
+		fmt.Fprintln(application.stdout, "Daily summary remains Custom command (advanced configuration).")
+	} else {
+		summaryMode, err = application.chooseDailySummary(reader, summaryMode)
+		if err != nil {
+			return err
+		}
+	}
 	candidate, err := updatedProfile(*profile, language, timezone, destination)
 	if err != nil {
 		return err
+	}
+	if summaryMode != config.SummaryCustom {
+		candidate.SummaryMode = summaryMode
+		candidate.SummarizerCommand = ""
 	}
 	fmt.Fprintf(application.stdout, `
 Ready:
@@ -446,9 +544,9 @@ Ready:
   Language:       %s
   Timezone:       %s
   Journal folder: %s
-  Daily summary:  Built-in (no AI or network)
+  Daily summary:  %s
 
-`, candidate.Name, candidate.Language, candidate.Timezone, candidate.JournalDestination)
+`, candidate.Name, candidate.Language, candidate.Timezone, candidate.JournalDestination, dailySummaryLabel(candidate.EffectiveSummaryMode()))
 	if candidate.JournalDestination != profile.JournalDestination {
 		fmt.Fprintln(application.stdout, "Existing journals will stay in their current folder; future output uses the new folder.")
 	}
@@ -490,7 +588,7 @@ func (application cli) chooseExistingProfile(reader *bufio.Reader, profiles []co
 
 func (application cli) setProfile(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--deny-literal <value> ...]")
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...]")
 	}
 	name := arguments[0]
 	flags := flag.NewFlagSet("profile set", flag.ContinueOnError)
@@ -498,10 +596,11 @@ func (application cli) setProfile(arguments []string) error {
 	language := flags.String("language", "", "journal language")
 	timezone := flags.String("timezone", "", "IANA timezone")
 	destination := flags.String("journal-destination", "", "journal destination")
+	dailySummary := flags.String("daily-summary", "", "daily summary preset")
 	var deniedLiterals stringListFlag
 	flags.Var(&deniedLiterals, "deny-literal", "literal to redact before summarization; repeatable")
 	if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--deny-literal <value> ...]")
+		return errors.New("usage: worklog profile set <name> [--language <language>] [--timezone <zone>] [--journal-destination <path>] [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...]")
 	}
 	specified := map[string]bool{}
 	flags.Visit(func(current *flag.Flag) { specified[current.Name] = true })
@@ -528,6 +627,17 @@ func (application cli) setProfile(arguments []string) error {
 	}
 	if specified["deny-literal"] {
 		candidate.DeniedLiterals = deniedLiterals.values()
+	}
+	if specified["daily-summary"] {
+		mode, err := normalizeSummaryMode(*dailySummary)
+		if err != nil {
+			return err
+		}
+		if err := validateSummaryModeAvailable(mode); err != nil {
+			return err
+		}
+		candidate.SummaryMode = mode
+		candidate.SummarizerCommand = ""
 	}
 	candidate, err = updatedProfile(candidate, candidate.Language, candidate.Timezone, candidate.JournalDestination)
 	if err != nil {
@@ -569,6 +679,19 @@ func updatedProfile(profile config.Profile, language, timezone, destination stri
 	return profile, nil
 }
 
+func normalizeSummaryMode(value string) (string, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "built-in", "builtin":
+		return config.SummaryBuiltIn, nil
+	case "codex":
+		return config.SummaryCodex, nil
+	case "claude", "claude-code", "claude code":
+		return config.SummaryClaudeCode, nil
+	default:
+		return "", errors.New("daily summary must be built-in, codex, or claude-code")
+	}
+}
+
 type stringListFlag struct {
 	items []string
 }
@@ -592,7 +715,7 @@ func (values stringListFlag) values() []string {
 
 func (application cli) addProfile(arguments []string) error {
 	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--deny-literal <value> ...] [--summarizer-command <command>]")
+		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...] [--summarizer-command <command>]")
 	}
 	name := arguments[0]
 	flags := flag.NewFlagSet("profile add", flag.ContinueOnError)
@@ -601,10 +724,11 @@ func (application cli) addProfile(arguments []string) error {
 	language := flags.String("language", "", "journal language")
 	destination := flags.String("journal-destination", "", "journal destination")
 	summarizer := flags.String("summarizer-command", "", "optional summarizer command")
+	dailySummary := flags.String("daily-summary", "", "daily summary preset")
 	var deniedLiterals stringListFlag
 	flags.Var(&deniedLiterals, "deny-literal", "literal to redact before summarization; repeatable")
 	if err := flags.Parse(arguments[1:]); err != nil || flags.NArg() != 0 {
-		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--deny-literal <value> ...] [--summarizer-command <command>]")
+		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...] [--summarizer-command <command>]")
 	}
 	if *timezone == "" || *language == "" || *destination == "" {
 		return errors.New("timezone, language, and journal destination are required")
@@ -612,6 +736,19 @@ func (application cli) addProfile(arguments []string) error {
 	profile, err := config.NewProfile(name, *timezone, *language, *destination, *summarizer)
 	if err != nil {
 		return err
+	}
+	if *dailySummary != "" {
+		if *summarizer != "" {
+			return errors.New("daily summary preset and summarizer command cannot both be configured")
+		}
+		mode, err := normalizeSummaryMode(*dailySummary)
+		if err != nil {
+			return err
+		}
+		if err := validateSummaryModeAvailable(mode); err != nil {
+			return err
+		}
+		profile.SummaryMode = mode
 	}
 	profile.DeniedLiterals = deniedLiterals.values()
 	configuration, err := application.loadOrInitialize()

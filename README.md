@@ -36,8 +36,10 @@ Choose a Work, Personal, or Custom profile. The current Git root and a
 profile-specific journal folder are editable defaults. Setup reads the effective
 author email from Git, detects timezone and language, and shows every resolved value
 for one final confirmation. If Git has no author email or the timezone cannot be
-detected safely, setup asks only for the missing value. M1 uses the deterministic
-Built-in summary, which needs no AI, network, or credentials.
+detected safely, setup asks only for the missing value. Daily summary choices are
+Built-in, Codex, and Claude Code. Built-in needs no AI or network; the other choices
+appear only when their executable is available and reuse the CLI's current session.
+Worklog never probes or stores provider credentials.
 
 Discover commands and examples through either help form:
 
@@ -62,6 +64,7 @@ worklog profile validate
 worklog settings personal
 worklog profile set personal --language en-US --timezone Asia/Taipei
 worklog profile set personal --journal-destination ~/Documents/worklog/personal
+worklog profile set personal --daily-summary codex
 worklog profile set personal --deny-literal private-project --deny-literal client-code
 
 worklog author add personal developer@example.com
@@ -76,8 +79,8 @@ worklog repo validate
 
 `settings [profile]` is the guided update path. With one profile it selects it
 automatically; with several profiles it asks which one to change. `profile set`
-offers the same language, IANA timezone, and journal-folder update boundary for
-scripts. Both validate the complete profile before atomically replacing config.
+offers the same language, IANA timezone, journal-folder, and daily-summary update
+boundary for scripts. Both validate the complete profile before atomically replacing config.
 Changing the journal folder affects future output only and never moves, copies, or
 deletes existing journals.
 
@@ -95,8 +98,8 @@ worklog day
 ```
 
 `day` collects the profile's current local date and post-redaction `DailyFacts`.
-With no advanced summarizer command it builds a deterministic summary. When one is
-configured, the command receives only that JSON on stdin and must return a
+Built-in creates a deterministic summary. Codex, Claude Code, and an advanced
+summarizer command all use the same stdin/stdout boundary and must return a
 schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, empty,
 malformed, or invalid commands fall back deterministically without exposing provider
 stderr. The core prints the complete Markdown preview before asking for confirmation.
@@ -131,8 +134,8 @@ adapters; `inspect` does not invoke one or write a journal.
 
 ## Advanced command summarizers
 
-The first adapter boundary intentionally has no Custom option in guided setup or
-settings. Advanced configuration can provide a command when adding a profile:
+Guided setup and settings expose only Built-in, Codex, and Claude Code. Advanced
+configuration retains the raw command contract without adding a Custom UI option:
 
 ```sh
 worklog profile add local --timezone Asia/Taipei --language zh-TW \

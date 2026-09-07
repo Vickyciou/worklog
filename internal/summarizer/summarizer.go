@@ -11,6 +11,7 @@ import (
 	"time"
 	"unicode"
 
+	"github.com/Vickyciou/worklog/internal/config"
 	"github.com/Vickyciou/worklog/internal/dailyfacts"
 	"github.com/Vickyciou/worklog/internal/dailysummary"
 )
@@ -20,6 +21,10 @@ const DefaultTimeout = 2 * time.Minute
 const TimeoutEnv = "WORKLOG_SUMMARIZER_TIMEOUT"
 
 const maxOutputBytes = 1024 * 1024
+
+const presetPrompt = "Summarize the post-redaction DailyFacts JSON from stdin. Return only one DailySummary JSON object matching the supplied schema. Do not return Markdown, choose paths, use tools, or add facts not supported by the input."
+
+const dailySummarySchema = `{"type":"object","additionalProperties":false,"required":["version","focus","completed","decisions","next_steps","technologies"],"properties":{"version":{"const":1},"focus":{"type":"array","maxItems":3,"items":{"type":"string","minLength":1}},"completed":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["topic","items"],"properties":{"topic":{"type":"string","minLength":1},"items":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["outcome"],"properties":{"outcome":{"type":"string","minLength":1},"approach":{"type":"string","minLength":1}}}}}}},"decisions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["decision"],"properties":{"decision":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}}}},"next_steps":{"type":"array","items":{"type":"string","minLength":1}},"technologies":{"type":"array","maxItems":10,"items":{"type":"string","minLength":1}}}}`
 
 type Failure string
 
@@ -48,6 +53,56 @@ func Run(ctx context.Context, command string, facts dailyfacts.Document, working
 	if err != nil || len(arguments) == 0 {
 		return dailysummary.Document{}, FailureUnavailable
 	}
+	return runArguments(ctx, arguments, facts, workingDirectory, timeout)
+}
+
+func RunPreset(ctx context.Context, mode string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {
+	switch mode {
+	case config.SummaryCodex:
+		executable, err := exec.LookPath("codex")
+		if err != nil {
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		schema, err := os.CreateTemp(workingDirectory, ".daily-summary-schema-*.json")
+		if err != nil {
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		schemaPath := schema.Name()
+		defer os.Remove(schemaPath)
+		if err := schema.Chmod(0o600); err != nil {
+			schema.Close()
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		if _, err := schema.WriteString(dailySummarySchema); err != nil {
+			schema.Close()
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		if err := schema.Close(); err != nil {
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		arguments := []string{
+			executable, "exec", "--ephemeral", "--ignore-user-config", "--ignore-rules",
+			"--sandbox", "read-only", "--skip-git-repo-check", "--color", "never",
+			"--output-schema", schemaPath, presetPrompt,
+		}
+		return runArguments(ctx, arguments, facts, workingDirectory, timeout)
+	case config.SummaryClaudeCode:
+		executable, err := exec.LookPath("claude")
+		if err != nil {
+			return dailysummary.Document{}, FailureUnavailable
+		}
+		arguments := []string{
+			executable, "--print", "--safe-mode", "--tools", "", "--permission-prompts", "none",
+			"--no-session-persistence", "--output-format", "text", "--json-schema", dailySummarySchema,
+			"--system-prompt", presetPrompt,
+		}
+		return runArguments(ctx, arguments, facts, workingDirectory, timeout)
+	default:
+		return dailysummary.Document{}, FailureUnavailable
+	}
+}
+
+func runArguments(ctx context.Context, arguments []string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {
 	payload, err := dailyfacts.Encode(facts)
 	if err != nil {
 		return dailysummary.Document{}, FailureInvalid

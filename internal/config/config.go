@@ -20,6 +20,10 @@ const (
 	ConfigHomeEnv     = "WORKLOG_CONFIG_HOME"
 	StateHomeEnv      = "WORKLOG_STATE_HOME"
 	configurationFile = "config.json"
+	SummaryBuiltIn    = "built-in"
+	SummaryCodex      = "codex"
+	SummaryClaudeCode = "claude-code"
+	SummaryCustom     = "custom"
 )
 
 var ErrNotConfigured = errors.New("worklog is not configured; run 'worklog setup'")
@@ -50,6 +54,7 @@ type Profile struct {
 	Language           string   `json:"language"`
 	JournalDestination string   `json:"journal_destination"`
 	DeniedLiterals     []string `json:"denied_literals,omitempty"`
+	SummaryMode        string   `json:"summary_mode,omitempty"`
 	SummarizerCommand  string   `json:"summarizer_command,omitempty"`
 }
 
@@ -205,6 +210,14 @@ func ValidateProfile(profile Profile) error {
 	if err := ValidateSummarizerCommand(profile.SummarizerCommand); err != nil {
 		return err
 	}
+	switch profile.SummaryMode {
+	case "", SummaryBuiltIn, SummaryCodex, SummaryClaudeCode:
+	default:
+		return fmt.Errorf("unsupported daily summary mode %q", profile.SummaryMode)
+	}
+	if profile.SummarizerCommand != "" && profile.SummaryMode != "" {
+		return errors.New("daily summary preset and summarizer command cannot both be configured")
+	}
 	deniedLiterals := make(map[string]struct{}, len(profile.DeniedLiterals))
 	for _, literal := range profile.DeniedLiterals {
 		literal = strings.TrimSpace(literal)
@@ -290,10 +303,23 @@ func NewProfile(name, timezone, language, destination, summarizer string) (Profi
 		JournalDestination: filepath.Clean(destination),
 		SummarizerCommand:  strings.TrimSpace(summarizer),
 	}
+	if profile.SummarizerCommand == "" {
+		profile.SummaryMode = SummaryBuiltIn
+	}
 	if err := ValidateProfile(profile); err != nil {
 		return Profile{}, err
 	}
 	return profile, nil
+}
+
+func (profile Profile) EffectiveSummaryMode() string {
+	if profile.SummaryMode != "" {
+		return profile.SummaryMode
+	}
+	if profile.SummarizerCommand != "" {
+		return SummaryCustom
+	}
+	return SummaryBuiltIn
 }
 
 func (configuration *Config) AddProfile(profile Profile) error {

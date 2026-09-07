@@ -25,6 +25,11 @@ const (
 
 var ErrExists = errors.New("journal already exists; refresh is required to replace it")
 
+var (
+	ErrInvalidManagedBlock = errors.New("journal does not contain exactly one valid managed block")
+	ErrChanged             = errors.New("journal changed after preview; refresh again")
+)
+
 func Path(profile config.Profile, date string) (string, error) {
 	parsed, err := time.Parse(time.DateOnly, date)
 	if err != nil || parsed.Format(time.DateOnly) != date {
@@ -182,6 +187,110 @@ func WriteAtomic(path string, contents []byte) error {
 	return nil
 }
 
+// Refresh replaces only the managed block from rendered and returns a displayable
+// diff of that block. Bytes before and after the existing block are retained
+// exactly as they were.
+func Refresh(existing, rendered []byte) ([]byte, []byte, error) {
+	existingStart, existingEnd, err := managedBlockBounds(existing)
+	if err != nil {
+		return nil, nil, err
+	}
+	renderedStart, renderedEnd, err := managedBlockBounds(rendered)
+	if err != nil {
+		return nil, nil, fmt.Errorf("rendered journal: %w", err)
+	}
+
+	existingBlock := existing[existingStart:existingEnd]
+	renderedBlock := rendered[renderedStart:renderedEnd]
+	replacement := make([]byte, 0, len(existing)-len(existingBlock)+len(renderedBlock))
+	replacement = append(replacement, existing[:existingStart]...)
+	replacement = append(replacement, renderedBlock...)
+	replacement = append(replacement, existing[existingEnd:]...)
+	return replacement, managedDiff(existingBlock, renderedBlock), nil
+}
+
+// ValidateManaged verifies that contents can be refreshed without guessing at
+// boundaries.
+func ValidateManaged(contents []byte) error {
+	_, _, err := managedBlockBounds(contents)
+	return err
+}
+
+// ReplaceAtomic replaces an existing regular journal only if it still matches the
+// bytes that were previewed.
+func ReplaceAtomic(path string, expected, contents []byte) error {
+	return replaceAtomic(path, expected, contents, nil)
+}
+
+func replaceAtomic(path string, expected, contents []byte, beforeReplace func() error) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return fmt.Errorf("inspect journal for replacement: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return errors.New("journal replacement requires an existing regular file")
+	}
+	current, err := os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("read journal for replacement: %w", err)
+	}
+	if !bytes.Equal(current, expected) {
+		return ErrChanged
+	}
+
+	directory := filepath.Dir(path)
+	temporary, err := os.CreateTemp(directory, ".worklog-*.tmp")
+	if err != nil {
+		return fmt.Errorf("create replacement journal: %w", err)
+	}
+	temporaryPath := temporary.Name()
+	defer os.Remove(temporaryPath)
+
+	if err := temporary.Chmod(info.Mode().Perm()); err != nil {
+		temporary.Close()
+		return fmt.Errorf("protect replacement journal: %w", err)
+	}
+	if _, err := temporary.Write(contents); err != nil {
+		temporary.Close()
+		return fmt.Errorf("write replacement journal: %w", err)
+	}
+	if err := temporary.Sync(); err != nil {
+		temporary.Close()
+		return fmt.Errorf("sync replacement journal: %w", err)
+	}
+	if err := temporary.Close(); err != nil {
+		return fmt.Errorf("close replacement journal: %w", err)
+	}
+	current, err = os.ReadFile(path)
+	if err != nil {
+		return fmt.Errorf("recheck journal for replacement: %w", err)
+	}
+	if !bytes.Equal(current, expected) {
+		return ErrChanged
+	}
+	if beforeReplace != nil {
+		if err := beforeReplace(); err != nil {
+			return fmt.Errorf("before journal replacement: %w", err)
+		}
+	}
+	if err := os.Rename(temporaryPath, path); err != nil {
+		return fmt.Errorf("replace journal atomically: %w", err)
+	}
+
+	if runtime.GOOS == "windows" {
+		return nil
+	}
+	directoryHandle, err := os.Open(directory)
+	if err != nil {
+		return fmt.Errorf("open journal directory for sync: %w", err)
+	}
+	defer directoryHandle.Close()
+	if err := directoryHandle.Sync(); err != nil {
+		return fmt.Errorf("sync journal directory: %w", err)
+	}
+	return nil
+}
+
 func CheckAvailable(path string) error {
 	if _, err := os.Lstat(path); err == nil {
 		return ErrExists
@@ -189,6 +298,67 @@ func CheckAvailable(path string) error {
 		return fmt.Errorf("inspect journal destination: %w", err)
 	}
 	return nil
+}
+
+func managedBlockBounds(contents []byte) (int, int, error) {
+	startMarker := []byte("<!-- worklog:managed:start")
+	start := bytes.Index(contents, startMarker)
+	if start < 0 || bytes.Index(contents[start+len(startMarker):], startMarker) >= 0 {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+	lineEnd := bytes.IndexByte(contents[start:], '\n')
+	if lineEnd < 0 {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+	lineEnd += start
+	startLine := strings.TrimSuffix(string(contents[start:lineEnd]), "\r")
+	digest := strings.TrimSuffix(strings.TrimPrefix(startLine, ManagedStartPrefix), " -->")
+	if !strings.HasPrefix(startLine, ManagedStartPrefix) || !strings.HasSuffix(startLine, " -->") || len(digest) != sha256.Size*2 {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+	decoded, err := hex.DecodeString(digest)
+	if err != nil || hex.EncodeToString(decoded) != digest {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+
+	endMarker := []byte(ManagedEnd)
+	endRelative := bytes.Index(contents[lineEnd+1:], endMarker)
+	if endRelative < 0 {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+	end := lineEnd + 1 + endRelative
+	if bytes.Index(contents[end+len(endMarker):], endMarker) >= 0 {
+		return 0, 0, ErrInvalidManagedBlock
+	}
+	return start, end + len(endMarker), nil
+}
+
+func managedDiff(existing, refreshed []byte) []byte {
+	var output bytes.Buffer
+	output.WriteString("--- existing managed block\n")
+	output.WriteString("+++ refreshed managed block\n")
+	output.WriteString("@@\n")
+	if bytes.Equal(existing, refreshed) {
+		output.WriteString(" (no managed changes)\n")
+		return output.Bytes()
+	}
+	writeDiffLines(&output, '-', existing)
+	writeDiffLines(&output, '+', refreshed)
+	return output.Bytes()
+}
+
+func writeDiffLines(output *bytes.Buffer, prefix byte, contents []byte) {
+	for len(contents) > 0 {
+		lineEnd := bytes.IndexByte(contents, '\n')
+		output.WriteByte(prefix)
+		if lineEnd < 0 {
+			output.Write(contents)
+			output.WriteByte('\n')
+			return
+		}
+		output.Write(contents[:lineEnd+1])
+		contents = contents[lineEnd+1:]
+	}
 }
 
 func writeListSection(output *bytes.Buffer, heading string, values []string) {

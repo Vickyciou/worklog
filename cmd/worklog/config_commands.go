@@ -54,8 +54,9 @@ func (application cli) day(arguments []string) error {
 		fmt.Fprint(application.stdout, dayHelp)
 		return nil
 	}
-	if len(arguments) != 0 {
-		return errors.New("usage: worklog day")
+	requestedDate, refresh, err := parseDayArguments(arguments)
+	if err != nil {
+		return err
 	}
 	configuration, err := config.Load(application.paths)
 	if err != nil {
@@ -65,9 +66,31 @@ func (application cli) day(arguments []string) error {
 		return fmt.Errorf("day requires exactly one configured profile in M1; found %d", len(configuration.Profiles))
 	}
 	profile := configuration.Profiles[0]
-	date, err := dailyfacts.CurrentDate(profile, time.Now())
+	date := requestedDate
+	if date == "" {
+		date, err = dailyfacts.CurrentDate(profile, time.Now())
+		if err != nil {
+			return err
+		}
+	}
+	destination, err := journal.Path(profile, date)
 	if err != nil {
 		return err
+	}
+	var existing []byte
+	if refresh {
+		existing, err = os.ReadFile(destination)
+		if errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("refresh journal %q: journal does not exist; omit --refresh to generate it", destination)
+		}
+		if err != nil {
+			return fmt.Errorf("read journal %q for refresh: %w", destination, err)
+		}
+		if err := journal.ValidateManaged(existing); err != nil {
+			return fmt.Errorf("refuse journal refresh %q: %w", destination, err)
+		}
+	} else if err := journal.CheckAvailable(destination); err != nil {
+		return fmt.Errorf("refuse journal destination %q: %w", destination, err)
 	}
 	facts, err := dailyfacts.Collect(profile, date)
 	if err != nil {
@@ -101,19 +124,26 @@ func (application cli) day(arguments []string) error {
 	if err != nil {
 		return fmt.Errorf("render profile %q: %w", profile.Name, err)
 	}
-	destination, err := journal.Path(profile, date)
-	if err != nil {
-		return err
-	}
-	if err := journal.CheckAvailable(destination); err != nil {
-		return fmt.Errorf("refuse journal destination %q: %w", destination, err)
-	}
 
-	fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", destination)
-	if _, err := application.stdout.Write(contents); err != nil {
-		return err
+	prompt := "Write this journal? [y/N]: "
+	if refresh {
+		var difference []byte
+		contents, difference, err = journal.Refresh(existing, contents)
+		if err != nil {
+			return fmt.Errorf("prepare journal refresh %q: %w", destination, err)
+		}
+		fmt.Fprintf(application.stdout, "Journal refresh diff: %s\n\n", destination)
+		if _, err := application.stdout.Write(difference); err != nil {
+			return err
+		}
+		prompt = "Refresh this journal? [y/N]: "
+	} else {
+		fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", destination)
+		if _, err := application.stdout.Write(contents); err != nil {
+			return err
+		}
 	}
-	fmt.Fprint(application.stdout, "\nWrite this journal? [y/N]: ")
+	fmt.Fprint(application.stdout, "\n"+prompt)
 	answer, err := bufio.NewReader(application.stdin).ReadString('\n')
 	if err != nil && !errors.Is(err, io.EOF) {
 		return fmt.Errorf("read confirmation: %w", err)
@@ -121,14 +151,45 @@ func (application cli) day(arguments []string) error {
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	if answer != "y" && answer != "yes" {
 		fmt.Fprintln(application.stdout)
+		if refresh {
+			return errors.New("journal refresh not confirmed")
+		}
 		return errors.New("journal write not confirmed")
 	}
-	if err := journal.WriteAtomic(destination, contents); err != nil {
+	if refresh {
+		err = journal.ReplaceAtomic(destination, existing, contents)
+	} else {
+		err = journal.WriteAtomic(destination, contents)
+	}
+	if err != nil {
 		fmt.Fprintln(application.stdout)
 		return fmt.Errorf("write journal %q: %w", destination, err)
 	}
-	fmt.Fprintf(application.stdout, "\nWrote journal %s.\n", destination)
+	verb := "Wrote"
+	if refresh {
+		verb = "Refreshed"
+	}
+	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, destination)
 	return nil
+}
+
+func parseDayArguments(arguments []string) (string, bool, error) {
+	date := ""
+	refresh := false
+	for _, argument := range arguments {
+		switch {
+		case argument == "--refresh":
+			if refresh {
+				return "", false, errors.New("usage: worklog day [YYYY-MM-DD] [--refresh]")
+			}
+			refresh = true
+		case strings.HasPrefix(argument, "-") || date != "":
+			return "", false, errors.New("usage: worklog day [YYYY-MM-DD] [--refresh]")
+		default:
+			date = argument
+		}
+	}
+	return date, refresh, nil
 }
 
 func (application cli) inspect(arguments []string) error {

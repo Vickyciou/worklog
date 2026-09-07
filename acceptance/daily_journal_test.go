@@ -276,6 +276,130 @@ func TestDayRechecksDestinationAfterPreviewAndPreservesExistingFile(t *testing.T
 	}
 }
 
+func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
+	environment := newEnvironment(t)
+	const profileEmail = "historical-refresh@example.invalid"
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", environment.journalDestination,
+	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+
+	historical := time.Now().UTC().AddDate(0, 0, -7).Truncate(time.Second)
+	date := historical.Format(time.DateOnly)
+	firstCommit := createCommitAt(t, environment, environment.repository, profileEmail,
+		historical.Format(time.RFC3339), historical.Format(time.RFC3339), "historical first", "")
+	assertSucceeded(t, environment.runWithInput(t,
+		`{"version":1,"outcome":"Historical first outcome","technologies":["Go"]}`,
+		"capture", environment.repository, firstCommit,
+	))
+
+	generated := environment.runWithInput(t, "yes\n", "day", date)
+	assertSucceeded(t, generated)
+	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	original, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatalf("read historical journal: %v", err)
+	}
+	start := bytes.Index(original, []byte("<!-- worklog:managed:start"))
+	if start < 0 {
+		t.Fatal("generated journal has no managed start")
+	}
+	withManual := make([]byte, 0, len(original)+64)
+	withManual = append(withManual, original[:start]...)
+	withManual = append(withManual, []byte("manual before block\r\n")...)
+	withManual = append(withManual, original[start:]...)
+	withManual = append(withManual, []byte("manual after block\x00\n")...)
+	if err := os.WriteFile(destination, withManual, 0o600); err != nil {
+		t.Fatalf("add manual journal content: %v", err)
+	}
+	wantUnmanaged := unmanagedJournalBytes(t, withManual)
+
+	secondTime := historical.Add(time.Minute)
+	secondCommit := createCommitAt(t, environment, environment.repository, profileEmail,
+		secondTime.Format(time.RFC3339), secondTime.Format(time.RFC3339), "historical second", "")
+	assertSucceeded(t, environment.runWithInput(t,
+		`{"version":1,"outcome":"Historical refreshed outcome","technologies":["Git"]}`,
+		"capture", environment.repository, secondCommit,
+	))
+
+	withoutFlag := environment.runWithInput(t, "yes\n", "day", date)
+	assertFailedWith(t, withoutFlag, "journal already exists")
+	declined := environment.runWithInput(t, "no\n", "day", date, "--refresh")
+	if declined.exitCode == 0 {
+		t.Fatal("declined refresh succeeded")
+	}
+	assertContains(t, declined.stderr, "journal refresh not confirmed")
+	assertContains(t, declined.stdout, "Journal refresh diff: "+destination)
+	assertContains(t, declined.stdout, "--- existing managed block")
+	assertContains(t, declined.stdout, "+- Historical refreshed outcome")
+	afterDecline, err := os.ReadFile(destination)
+	if err != nil || !bytes.Equal(afterDecline, withManual) {
+		t.Fatalf("declined refresh changed journal: error=%v", err)
+	}
+
+	refreshed := environment.runWithInput(t, "yes\n", "day", "--refresh", date)
+	assertSucceeded(t, refreshed)
+	assertContains(t, refreshed.stdout, "Refreshed journal "+destination+".")
+	contents, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatalf("read refreshed journal: %v", err)
+	}
+	if !bytes.Equal(unmanagedJournalBytes(t, contents), wantUnmanaged) {
+		t.Fatalf("refresh changed bytes outside managed block\n--- got ---\n%q\n--- want ---\n%q", unmanagedJournalBytes(t, contents), wantUnmanaged)
+	}
+	for _, expected := range []string{"Historical first outcome", "Historical refreshed outcome"} {
+		if !strings.Contains(string(contents), expected) {
+			t.Fatalf("refreshed managed block missing %q:\n%s", expected, contents)
+		}
+	}
+}
+
+func TestDayRefreshRefusesJournalWithoutValidManagedBoundaries(t *testing.T) {
+	environment := newEnvironment(t)
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", environment.journalDestination,
+	))
+	date := time.Now().UTC().AddDate(0, 0, -2).Format(time.DateOnly)
+	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
+		t.Fatalf("create historical journal directory: %v", err)
+	}
+	original := []byte("manual journal without managed boundaries\n")
+	if err := os.WriteFile(destination, original, 0o600); err != nil {
+		t.Fatalf("write manual journal: %v", err)
+	}
+
+	result := environment.runWithInput(t, "yes\n", "day", date, "--refresh")
+	assertFailedWith(t, result, "exactly one valid managed block")
+	if strings.Contains(result.stdout, "Journal refresh diff:") {
+		t.Fatal("invalid journal reached refresh preview")
+	}
+	contents, err := os.ReadFile(destination)
+	if err != nil || !bytes.Equal(contents, original) {
+		t.Fatalf("invalid journal changed: contents=%q error=%v", contents, err)
+	}
+}
+
+func unmanagedJournalBytes(t *testing.T, contents []byte) []byte {
+	t.Helper()
+	start := bytes.Index(contents, []byte("<!-- worklog:managed:start"))
+	end := bytes.Index(contents, []byte("<!-- worklog:managed:end -->"))
+	if start < 0 || end < start {
+		t.Fatalf("journal has invalid managed block:\n%s", contents)
+	}
+	end += len("<!-- worklog:managed:end -->")
+	unmanaged := append([]byte(nil), contents[:start]...)
+	unmanaged = append(unmanaged, contents[end:]...)
+	return unmanaged
+}
+
 func readUntil(t *testing.T, reader *bufio.Reader, marker string) string {
 	t.Helper()
 	var output strings.Builder

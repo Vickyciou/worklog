@@ -54,13 +54,13 @@ Usage:
 
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
-  worklog day         Preview and write today's journal
+  worklog day         Preview, write, or refresh a daily journal
   worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview and write today's journal
+  day        Preview, write, or refresh a daily journal
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles

@@ -89,12 +89,14 @@ journal destination that daily commands should use. A repository can belong to o
 one profile. Exact duplicate paths and overlapping parent or child mappings are
 rejected.
 
-## Generate today's journal
+## Generate or refresh a daily journal
 
 After setup, a configuration with exactly one profile needs no daily flags:
 
 ```sh
 worklog day
+worklog day 2026-09-02
+worklog day 2026-09-02 --refresh
 ```
 
 `day` collects the profile's current local date and post-redaction `DailyFacts`.
@@ -110,8 +112,11 @@ choose a path.
 The rendered Obsidian note uses YAML date, string, and list properties, bounded and
 deduplicated public technology names, Taiwan Traditional Chinese headings, and an
 explicit managed block with a DailyFacts source digest. A confirmed first write is
-installed atomically. Existing notes are never replaced by `day`; historical dates
-and managed-block refresh are separate workflows.
+installed atomically. Passing `YYYY-MM-DD` previews and generates that historical
+date when it does not exist. Existing notes are refused unless `--refresh` is
+explicit. Refresh validates exactly one managed block, displays its diff, preserves
+all bytes outside the block, rechecks the previewed file, and atomically replaces it
+only after confirmation.
 
 ## Inspect daily facts
 

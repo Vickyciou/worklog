@@ -17,13 +17,13 @@ Usage:
 
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
-  worklog day         Preview and write today's journal
+  worklog day         Preview, write, or refresh a daily journal
   worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview and write today's journal
+  day        Preview, write, or refresh a daily journal
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles
@@ -233,14 +233,15 @@ Options:
   -h, --help    Show help for inspect
 `
 
-const dayHelp = `Preview and write today's journal.
+const dayHelp = `Preview, write, or refresh a daily journal.
 
 Usage:
-  worklog day
+  worklog day [YYYY-MM-DD] [--refresh]
 
 Behavior:
-  M2 currently requires exactly one configured profile. The command collects
-  today's post-redaction DailyFacts in that profile's timezone. Codex, Claude
+  M2 currently requires exactly one configured profile. With no date, the command
+  uses today in that profile's timezone; YYYY-MM-DD selects a historical date.
+  It collects post-redaction DailyFacts for that date. Codex, Claude
   Code, and an advanced summarizer command all receive that boundary and must
   return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
   empty, malformed, or invalid providers use the deterministic Built-in fallback.
@@ -249,13 +250,16 @@ Behavior:
 
     <journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md
 
-  Only an explicit y or yes writes the journal. Existing journals are not
-  replaced; historical generation and refresh are separate workflows.
+  Only an explicit y or yes writes the journal. A historical date can be generated
+  when its destination is absent. Existing journals are refused unless --refresh
+  is explicit. Refresh requires exactly one valid managed block, previews its diff,
+  preserves every byte outside it, and atomically replaces the file after confirmation.
 
 Next:
   Run worklog inspect <profile> first when you want to review the source facts.
 
 Options:
+  --refresh     Replace only an existing journal's managed block
   -h, --help    Show help for day
 `
 

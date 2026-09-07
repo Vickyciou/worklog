@@ -14,3 +14,7 @@
 - [x] 預設 destination 支援依 profile、年份與月份組織日誌，provider 無法決定檔案路徑。
 - [x] 寫入前提供 preview 或 diff；目的地不明確時拒絕寫入。
 - [x] 確認寫入採 atomic replacement，並在生成內容外預留明確的 managed-block boundaries。
+
+## Comments
+
+- 2026-09-07：依實際 Obsidian 使用需求，將 journal layout 對齊舊 Bash：`<destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`，frontmatter 使用 `date`、`type: worklog-daily`、`tech`、`tags: [工作日誌]`，標題使用 `# 工作日誌 - YYYY-MM-DD`；managed block 與 atomic safety 保持不變。

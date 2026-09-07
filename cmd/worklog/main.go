@@ -250,7 +250,7 @@ Behavior:
   Worklog then renders and previews the complete journal. The
   destination is:
 
-    <journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md
+    <journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md
 
   Only an explicit y or yes writes the journal. A historical date can be generated
   when its destination is absent. Existing journals are refused unless --refresh

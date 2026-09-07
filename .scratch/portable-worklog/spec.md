@@ -96,6 +96,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Make the exact post-redaction DailyFacts payload available through an inspect command without invoking a provider or writing a journal.
 - Validate DailySummary structurally before rendering. The supported summary model contains focus statements, topic-grouped completed items, decisions, next steps and public technology names.
 - Render YAML frontmatter and Markdown deterministically in the core. Providers never emit final Markdown or choose filesystem paths.
+- Preserve the established Obsidian daily-note layout `<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`, `date`/`type`/`tech`/`tags` frontmatter, and `# 工作日誌 - YYYY-MM-DD` title.
 - Support a default Taiwan Traditional Chinese daily template compatible with the current journal headings and property types, while allowing profile-level language and template selection.
 - Mark generated note content with explicit managed-block boundaries and a source digest. Refresh updates only that block and preserves content outside it.
 - Default to non-destructive behavior: preview changes, refuse ambiguous destinations, and use atomic replacement after confirmation. Refresh is the explicit regeneration operation.

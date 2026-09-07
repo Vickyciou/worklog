@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -41,7 +40,7 @@ func Path(profile config.Profile, date string) (string, error) {
 	return filepath.Join(
 		filepath.Clean(profile.JournalDestination),
 		parsed.Format("2006"),
-		parsed.Format("01"),
+		parsed.Format("2006-01"),
 		date+".md",
 	), nil
 }
@@ -58,28 +57,22 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 	output.WriteString("date: ")
 	output.WriteString(facts.Date)
 	output.WriteByte('\n')
-	output.WriteString("profile: ")
-	output.WriteString(yamlString(profile.Name))
-	output.WriteByte('\n')
-	output.WriteString("tags:\n  - \"worklog\"\n")
-	output.WriteString("technologies:")
+	output.WriteString("type: worklog-daily\n")
+	output.WriteString("tech: [")
 	if len(summary.Technologies) == 0 {
-		output.WriteString(" []\n")
+		output.WriteString("]\n")
 	} else {
-		output.WriteByte('\n')
-		for _, technology := range summary.Technologies {
-			output.WriteString("  - ")
-			output.WriteString(yamlString(technology))
-			output.WriteByte('\n')
-		}
+		output.WriteString(strings.Join(summary.Technologies, ", "))
+		output.WriteString("]\n")
 	}
+	output.WriteString("tags: [工作日誌]\n")
 	output.WriteString("---\n\n")
 	output.WriteString(ManagedStartPrefix)
 	output.WriteString(hex.EncodeToString(digest[:]))
 	output.WriteString(" -->\n")
-	output.WriteString("# ")
+	output.WriteString("# 工作日誌 - ")
 	output.WriteString(facts.Date)
-	output.WriteString(" 工作日誌\n\n")
+	output.WriteString("\n\n")
 
 	writeListSection(&output, "今日重點", summary.Focus)
 	output.WriteString("## 完成事項\n\n")
@@ -375,11 +368,6 @@ func writeListSection(output *bytes.Buffer, heading string, values []string) {
 		output.WriteByte('\n')
 	}
 	output.WriteByte('\n')
-}
-
-func yamlString(value string) string {
-	encoded, _ := json.Marshal(value)
-	return string(encoded)
 }
 
 func markdownText(value string) string {

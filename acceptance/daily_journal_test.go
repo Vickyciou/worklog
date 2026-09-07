@@ -49,27 +49,16 @@ func TestDayPreviewsAndWritesDeterministicOfflineJournal(t *testing.T) {
 	assertSucceeded(t, inspect)
 	digest := sha256.Sum256([]byte(inspect.stdout))
 	digestText := hex.EncodeToString(digest[:])
-	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	destination := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 	expected := fmt.Sprintf(`---
 date: %s
-profile: "work"
-tags:
-  - "worklog"
-technologies:
-  - "Go"
-  - "Git"
-  - "Kubernetes"
-  - "Docker"
-  - "PostgreSQL"
-  - "Redis"
-  - "Terraform"
-  - "GitHub Actions"
-  - "TypeScript"
-  - "Node.js"
+type: worklog-daily
+tech: [Go, Git, Kubernetes, Docker, PostgreSQL, Redis, Terraform, GitHub Actions, TypeScript, Node.js]
+tags: [工作日誌]
 ---
 
 <!-- worklog:managed:start source-digest=sha256:%s -->
-# %s 工作日誌
+# 工作日誌 - %s
 
 ## 今日重點
 
@@ -183,7 +172,7 @@ func TestDayNeutralizesCapturedManagedMarkersInsideMarkdownText(t *testing.T) {
 
 	result := environment.runWithInput(t, "yes\n", "day")
 	assertSucceeded(t, result)
-	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	destination := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 	contents, err := os.ReadFile(destination)
 	if err != nil {
 		t.Fatalf("read marker fixture journal: %v", err)
@@ -219,7 +208,7 @@ func TestDayRechecksDestinationAfterPreviewAndPreservesExistingFile(t *testing.T
 	createCommitAt(t, environment, environment.repository, email,
 		now.Format(time.RFC3339), now.Format(time.RFC3339), "racing day activity", "")
 	date := time.Now().UTC().Format(time.DateOnly)
-	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	destination := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 
 	command := exec.Command(worklogBinary, "day")
 	command.Dir = environment.repository
@@ -305,7 +294,7 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 
 	generated := environment.runWithInput(t, "yes\n", "day", date)
 	assertSucceeded(t, generated)
-	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	destination := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 	original, err := os.ReadFile(destination)
 	if err != nil {
 		t.Fatalf("read historical journal: %v", err)
@@ -379,7 +368,7 @@ func TestDayRefreshRefusesJournalWithoutValidManagedBoundaries(t *testing.T) {
 	date := commitTime.Format(time.DateOnly)
 	createCommitAt(t, environment, environment.repository, email,
 		commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), "invalid refresh activity", "")
-	destination := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	destination := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 	if err := os.MkdirAll(filepath.Dir(destination), 0o700); err != nil {
 		t.Fatalf("create historical journal directory: %v", err)
 	}

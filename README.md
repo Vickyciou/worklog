@@ -110,12 +110,13 @@ schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, e
 malformed, or invalid commands fall back deterministically without exposing provider
 stderr. The core prints the complete Markdown preview before asking for confirmation.
 Only `y` or `yes` writes. The core chooses the destination as
-`<journal-destination>/<YYYY>/<MM>/<YYYY-MM-DD>.md`; configured providers never
+`<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`; configured providers never
 choose a path.
 
-The rendered Obsidian note uses YAML date, string, and list properties, bounded and
-deduplicated public technology names, Taiwan Traditional Chinese headings, and an
-explicit managed block with a DailyFacts source digest. A confirmed first write is
+The rendered Obsidian note retains the legacy Obsidian-compatible `date`, `type`,
+`tech`, and `tags` frontmatter plus the `# 工作日誌 - YYYY-MM-DD` title. Public
+technology names remain bounded and deduplicated. Taiwan Traditional Chinese headings
+and an explicit managed block include a DailyFacts source digest. A confirmed first write is
 installed atomically. Passing `YYYY-MM-DD` previews and generates that historical
 date when it does not exist. Existing notes are refused unless `--refresh` is
 explicit. Refresh validates exactly one managed block, displays its diff, preserves

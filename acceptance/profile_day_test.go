@@ -96,7 +96,7 @@ func TestDayKeepsActiveProfileAdapterRequestsAndJournalsSeparate(t *testing.T) {
 				t.Fatalf("%s request contains %s activity:\n%s", profile.name, other.name, payload)
 			}
 		}
-		journalPath := filepath.Join(environment.root, profile.name+"-journal", date[:4], date[5:7], date+".md")
+		journalPath := filepath.Join(environment.root, profile.name+"-journal", date[:4], date[:7], date+".md")
 		journalBytes, err := os.ReadFile(journalPath)
 		if err != nil {
 			t.Fatalf("read %s journal: %v", profile.name, err)
@@ -142,7 +142,7 @@ func TestDayPreflightsAmbiguousActiveJournalDestinationsBeforeWriting(t *testing
 
 	result := environment.runWithInput(t, "yes\nyes\n", "day", date)
 	assertFailedWith(t, result, "journal destination", "ambiguous", "worklog profile set")
-	journalPath := filepath.Join(environment.journalDestination, date[:4], date[5:7], date+".md")
+	journalPath := filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md")
 	if _, err := os.Stat(journalPath); !os.IsNotExist(err) {
 		t.Fatalf("ambiguous destination wrote journal state: %v", err)
 	}
@@ -164,7 +164,7 @@ func TestDaySkipsProfilesWithoutActivity(t *testing.T) {
 	if result.stdout != "No profile activity found; no journals to write.\n" {
 		t.Fatalf("quiet day stdout = %q", result.stdout)
 	}
-	journalPath := filepath.Join(environment.journalDestination, "2001", "01", "2001-01-01.md")
+	journalPath := filepath.Join(environment.journalDestination, "2001", "2001-01", "2001-01-01.md")
 	if _, err := os.Stat(journalPath); !os.IsNotExist(err) {
 		t.Fatalf("quiet day created journal destination: %v", err)
 	}

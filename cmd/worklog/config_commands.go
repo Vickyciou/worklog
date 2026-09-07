@@ -44,6 +44,8 @@ func (application cli) execute(command string, arguments []string) error {
 		return application.inspect(arguments)
 	case "day":
 		return application.day(arguments)
+	case "doctor":
+		return application.doctor(arguments)
 	default:
 		return fmt.Errorf("unknown command %q", command)
 	}

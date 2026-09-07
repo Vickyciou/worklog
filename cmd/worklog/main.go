@@ -29,6 +29,7 @@ Commands:
   profile    Add, update, inspect, and validate profiles
   author     Add, inspect, and validate author identities
   repo       Add, inspect, and validate repository mappings
+  doctor     Diagnose configuration and runtime prerequisites
   help       Show help for worklog
   version    Print version information
 
@@ -267,6 +268,25 @@ Options:
   -h, --help    Show help for day
 `
 
+const doctorHelp = `Diagnose worklog configuration and runtime prerequisites.
+
+Usage:
+  worklog doctor
+
+Behavior:
+  Doctor checks Git, config and state roots, profiles, author identities,
+  repository mappings, the Git notes ref, journal destinations, and configured
+  summary executables. It does not read captured note content, invoke a summary
+  provider, probe provider credentials, or print paths, commands, denied literals,
+  credentials, or captured facts.
+
+  Every failed check includes an action to repair it. Any failure produces a
+  non-zero exit status.
+
+Options:
+  -h, --help    Show help for doctor
+`
+
 const captureHelp = `Record a versioned WorklogEvent as a Git note.
 
 Usage:
@@ -339,7 +359,7 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "worklog %s\n", version)
 		return 0
-	case "setup", "settings", "profile", "author", "repo", "inspect", "day":
+	case "setup", "settings", "profile", "author", "repo", "inspect", "day", "doctor":
 		paths, err := config.DefaultPaths()
 		if err != nil {
 			return commandError(stderr, err)
@@ -371,6 +391,7 @@ func helpText(topic []string) (string, bool) {
 		"capture":     captureHelp,
 		"inspect":     inspectHelp,
 		"day":         dayHelp,
+		"doctor":      doctorHelp,
 	}
 	value, found := help[key]
 	return value, found

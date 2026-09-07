@@ -56,6 +56,16 @@ func Run(ctx context.Context, command string, facts dailyfacts.Document, working
 	return runArguments(ctx, arguments, facts, workingDirectory, timeout)
 }
 
+// Executable resolves only the executable portion of an advanced command. It is
+// used by diagnostics and never invokes the command.
+func Executable(command string) (string, error) {
+	arguments, err := splitCommand(command)
+	if err != nil || len(arguments) == 0 {
+		return "", errors.New("summarizer command cannot be parsed")
+	}
+	return exec.LookPath(arguments[0])
+}
+
 func RunPreset(ctx context.Context, mode string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {
 	switch mode {
 	case config.SummaryCodex:

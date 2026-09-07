@@ -66,6 +66,7 @@ Commands:
   profile    Add, update, inspect, and validate profiles
   author     Add, inspect, and validate author identities
   repo       Add, inspect, and validate repository mappings
+  doctor     Diagnose configuration and runtime prerequisites
   help       Show help for worklog
   version    Print version information
 
@@ -107,6 +108,7 @@ func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
 		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},
 		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add <profile> <path>"},
 		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "worklog inspect <profile>"},
+		{name: "doctor", direct: []string{"doctor", "--help"}, help: []string{"help", "doctor"}, expectText: "It does not read captured note content"},
 	}
 
 	for _, topic := range topics {

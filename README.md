@@ -141,6 +141,22 @@ denied literals and common secret, token, hash, path, email, raw diff, and fence
 patterns. This is the exact post-redaction `DailyFacts` boundary used by summarizer
 adapters; `inspect` does not invoke one or write a journal.
 
+## Diagnose configuration
+
+Run the non-destructive diagnostic before daily generation when an environment or
+mapping has changed:
+
+```sh
+worklog doctor
+```
+
+Doctor checks Git, config and state roots, required profile settings, authors,
+non-overlapping registered repositories, Git notes access, journal destinations, and
+summary executables. Every failure includes a repair action and produces a non-zero
+exit status. It never reads captured note content, invokes a provider, probes provider
+credentials, or prints configured paths, commands, author emails, denied literals, or
+captured facts.
+
 ## Advanced command summarizers
 
 Guided setup and settings expose only Built-in, Codex, and Claude Code. Advanced

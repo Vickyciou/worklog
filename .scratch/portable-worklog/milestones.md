@@ -33,7 +33,9 @@ M1 完成條件已達成：01、02、03、04、06、12 的 acceptance criteria �
 2. 07 — 連接任意 command summarizer；17 — 修改既有 profile settings
 3. 08 — 分開處理同一天的多個 profiles；10 — 診斷設定與隱私邊界；16 — 提供 AI CLI 摘要 presets
 
-M2 預定在 M1 完成後開始。M2 完成條件：05、07、08、09、10、15、16、17 的 acceptance criteria 全部通過。
+**Status:** complete（2026-09-07）
+
+M2 完成條件已達成：05、07、08、09、10、15、16、17 的 acceptance criteria 全部通過，包括 post-redaction adapter boundary、validated summarizer fallback、隔離的多 profile daily flow、managed historical refresh、guided settings、authenticated CLI presets 與不洩漏 private values 的 doctor diagnostics。
 
 ## M3 — 發布與正式遷移
 

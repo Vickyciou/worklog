@@ -25,17 +25,18 @@ M1 完成條件已達成：01、02、03、04、06、12 的 acceptance criteria �
 
 **Outcome:** 使用者可以安全連接任意 command summarizer，隔離同一天的多個 profiles，refresh 歷史日誌並診斷設定問題。
 
-**Tickets:** 05、07、08、09、10、15、16、17
+**Tickets:** 05、07、08、09、10、15、16、17、18
 
 **Assignment waves:**
 
 1. 05 — 在 summarizer 邊界執行隱私遮蔽；09 — 安全 refresh 歷史日誌；15 — 精簡 setup 並提供任務導向 help
 2. 07 — 連接任意 command summarizer；17 — 修改既有 profile settings
 3. 08 — 分開處理同一天的多個 profiles；10 — 診斷設定與隱私邊界；16 — 提供 AI CLI 摘要 presets
+4. 18 — 引導新增完整 profile（M2 完成後的易用性 follow-up）
 
-**Status:** complete（2026-09-07）
+**Status:** complete（2026-09-07；Issue 18 follow-up 於 2026-09-08 完成）
 
-M2 完成條件已達成：05、07、08、09、10、15、16、17 的 acceptance criteria 全部通過，包括 post-redaction adapter boundary、validated summarizer fallback、隔離的多 profile daily flow、managed historical refresh、guided settings、authenticated CLI presets 與不洩漏 private values 的 doctor diagnostics。
+M2 完成條件已達成：05、07、08、09、10、15、16、17、18 的 acceptance criteria 全部通過，包括 post-redaction adapter boundary、validated summarizer fallback、隔離的多 profile daily flow、managed historical refresh、guided setup/settings/additional-profile flow、authenticated CLI presets 與不洩漏 private values 的 doctor diagnostics。
 
 ## M3 — 發布與正式遷移
 

@@ -68,6 +68,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 48. As a subscriber to a supported AI coding CLI, I want worklog to reuse my provider-managed Codex or Claude Code session, so that worklog never asks me to copy an API key.
 49. As a user seeking help, I want task-oriented command help with examples and exact recovery actions, so that I do not need to inspect configuration files.
 50. As a user, I want to change an existing profile's language, timezone, journal destination and daily summary preference without editing JSON, so that settings can evolve safely after setup.
+51. As a user adding another profile, I want the setup-style guided flow to register its initial repository and author too, so that I do not need a long command or multiple follow-up commands.
 
 ## Implementation Decisions
 
@@ -76,6 +77,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Provide `setup`, `profile`, `repo`, `capture`, `inspect`, `day` and `doctor` command families. Optimize the everyday path so that `worklog day` requires no flags after setup.
 - Keep setup progressively disclosed. Prompt for a Work, Personal or Custom profile; show the current Git root and a profile-specific journal folder as editable defaults; infer author email, IANA timezone and language; ask for an inferred value only when it cannot be resolved safely; then show one final confirmation before writing.
 - Provide `settings [profile]` as the guided path for changing an existing profile and `profile set` as the scriptable advanced contract. Validate the complete candidate config before atomic replacement; never move existing journals as a side effect of changing their destination.
+- Provide `profile add [name]` without settings flags as the guided path for adding another profile. Reuse setup's repository, author, timezone, language, journal destination and daily-summary discovery, save the initial author and repository mapping with the profile after one confirmation, and retain the explicit flags form as the advanced scriptable contract.
 - Treat `work`, `personal` and custom profile names as routing labels with identical capabilities. They do not silently change privacy or collection behavior.
 - Present summarization as a user goal rather than a raw command. Offer deterministic built-in output by default and, once the command adapter is available, offer executable-discovered Codex and Claude Code presets. The first preset release has no user-facing Custom command option. A preset simply invokes the provider CLI and lets it reuse its own session; worklog never probes, imports, copies or stores provider credentials, and falls back deterministically when invocation fails.
 - Keep `capture`, author identities, repository mappings and raw summarizer commands available as advanced contracts, but omit them from the shortest first-run explanation. Root help leads with setup, daily generation, adding the current repository, settings and diagnostics; detailed help remains available for every command and subcommand.

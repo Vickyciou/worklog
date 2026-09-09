@@ -277,6 +277,135 @@ func TestSetupCancellationHasNoSideEffects(t *testing.T) {
 	}
 }
 
+func TestGuidedProfileAddCreatesProfileAuthorAndRepository(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "Asia/Taipei",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "zh_TW.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "personal@example.invalid"))
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "en-US",
+		"--journal-destination", filepath.Join(environment.root, "work-journal"),
+	))
+	personalJournal := filepath.Join(environment.root, "personal-journal")
+	input := strings.Join([]string{"", "", personalJournal, "", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "profile", "add")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Choose a profile:")
+	assertContains(t, result.stdout, "1. Work      Already configured")
+	assertContains(t, result.stdout, "Profile [2]:")
+	assertContains(t, result.stdout, "Ready to add:")
+	assertContains(t, result.stdout, `Added profile "personal" with its author and repository.`)
+	if strings.Count(result.stdout, "Add this profile?") != 1 {
+		t.Fatalf("guided add confirmation count is not one:\n%s", result.stdout)
+	}
+	show := environment.run(t, "profile", "show", "personal")
+	assertSucceeded(t, show)
+	for _, expected := range []string{
+		`"personal@example.invalid"`,
+		`"` + canonicalTestPath(t, environment.repository) + `"`,
+		`"timezone": "Asia/Taipei"`,
+		`"language": "zh-TW"`,
+		`"journal_destination": "` + personalJournal + `"`,
+	} {
+		assertContains(t, show.stdout, expected)
+	}
+	if _, err := os.Stat(personalJournal); err != nil {
+		t.Fatalf("guided add did not create journal directory: %v", err)
+	}
+}
+
+func TestGuidedProfileAddWithNameCancellationHasNoSideEffects(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "client@example.invalid"))
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "en-US",
+		"--journal-destination", filepath.Join(environment.root, "work-journal"),
+	))
+	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
+	before, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration before guided add: %v", err)
+	}
+	journal := filepath.Join(environment.root, "cancelled-client-journal")
+	input := strings.Join([]string{"", journal, "", "n", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "profile", "add", "client-a")
+
+	assertSucceeded(t, result)
+	if strings.Contains(result.stdout, "Choose a profile:") {
+		t.Fatal("specified profile name unexpectedly showed the profile menu")
+	}
+	assertContains(t, result.stdout, "Profile not added.")
+	after, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration after guided add: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("cancelled guided add changed config bytes")
+	}
+	if _, err := os.Stat(journal); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("cancelled guided add created journal directory: %v", err)
+	}
+}
+
+func TestGuidedProfileAddRejectsRepositoryConflictWithoutSideEffects(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.invalid"))
+	setupInput := strings.Join([]string{"1", "", filepath.Join(environment.root, "work-journal"), "", ""}, "\n")
+	assertSucceeded(t, environment.runWithInput(t, setupInput, "setup"))
+	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
+	before, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration before conflicting add: %v", err)
+	}
+	journal := filepath.Join(environment.root, "conflicting-personal-journal")
+	input := strings.Join([]string{"", journal, "", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "profile", "add", "personal")
+
+	if result.exitCode == 0 {
+		t.Fatal("conflicting guided add succeeded")
+	}
+	assertContains(t, result.stderr, "overlaps")
+	assertContains(t, result.stderr, "profile \"work\"")
+	assertContains(t, result.stderr, "profile \"personal\"")
+	if strings.Contains(result.stdout, "Add this profile?") {
+		t.Fatal("conflicting guided add reached confirmation")
+	}
+	after, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration after conflicting add: %v", err)
+	}
+	if string(after) != string(before) {
+		t.Fatal("conflicting guided add changed config bytes")
+	}
+	if _, err := os.Stat(journal); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("conflicting guided add created journal directory: %v", err)
+	}
+}
+
 func TestSettingsUpdatesTheOnlyProfileWithoutMovingJournals(t *testing.T) {
 	environment := newEnvironment(t)
 	oldJournal := filepath.Join(environment.root, "old-journal")

@@ -54,6 +54,7 @@ Usage:
 
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
+  worklog profile add Add another profile with guided prompts
   worklog day         Preview, write, or refresh a daily journal
   worklog settings    Update an existing profile with guided prompts
 
@@ -102,7 +103,7 @@ func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
 		{name: "setup", direct: []string{"setup", "--help"}, help: []string{"help", "setup"}, expectText: "Worklog reads the\n  author email"},
 		{name: "settings", direct: []string{"settings", "--help"}, help: []string{"help", "settings"}, expectText: "Changing the journal folder affects future output only"},
 		{name: "profile", direct: []string{"profile", "--help"}, help: []string{"help", "profile"}, expectText: "worklog profile <add|set|list|show|validate>"},
-		{name: "profile add", direct: []string{"profile", "add", "--help"}, help: []string{"help", "profile", "add"}, expectText: "Credentials must not be written"},
+		{name: "profile add", direct: []string{"profile", "add", "--help"}, help: []string{"help", "profile", "add"}, expectText: "same guided flow as setup"},
 		{name: "profile set", direct: []string{"profile", "set", "--help"}, help: []string{"help", "profile", "set"}, expectText: "Changing the journal destination does not move"},
 		{name: "author", direct: []string{"author", "--help"}, help: []string{"help", "author"}, expectText: "Manage Git author emails"},
 		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},

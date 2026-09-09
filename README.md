@@ -46,6 +46,7 @@ Discover commands and examples through either help form:
 ```sh
 worklog --help
 worklog setup --help
+worklog profile add
 worklog settings --help
 worklog profile add --help
 worklog profile set --help
@@ -56,6 +57,8 @@ worklog help repo add
 Use the configuration command families to add, inspect, and validate entries:
 
 ```sh
+worklog profile add
+worklog profile add personal
 worklog profile add personal --timezone Asia/Taipei --language zh-TW --journal-destination /path/to/journal
 worklog profile list
 worklog profile show personal
@@ -76,6 +79,13 @@ worklog repo list
 worklog repo show /path/to/repository
 worklog repo validate
 ```
+
+`profile add [name]` without settings flags follows the guided setup flow. It
+uses the current Git repository as an editable default, detects its author plus
+the system timezone and language, asks for the journal folder and daily summary,
+then saves the profile, author identity, and repository mapping after one final
+confirmation. Omit `name` to choose Work, Personal, or Custom from a menu. The
+long flags form remains available for scripts and advanced configuration.
 
 `settings [profile]` is the guided update path. With one profile it selects it
 automatically; with several profiles it asks which one to change. `profile set`

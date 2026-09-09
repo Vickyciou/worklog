@@ -308,80 +308,7 @@ func (application cli) setup(arguments []string) error {
 	if err != nil {
 		return err
 	}
-	workingDirectory, err := os.Getwd()
-	if err != nil {
-		return fmt.Errorf("get current directory: %w", err)
-	}
-	repositoryDefault := workingDirectory
-	if root, rootErr := gitRepositoryRoot(workingDirectory); rootErr == nil {
-		repositoryDefault = root
-	}
-	repository, err := application.prompt(reader, "Repository", repositoryDefault, true)
-	if err != nil {
-		return err
-	}
-	repository, err = expandUserPath(repository)
-	if err != nil {
-		return err
-	}
-	repositoryRoot, err := gitRepositoryRoot(repository)
-	if err != nil {
-		return err
-	}
-	author, err := gitAuthorEmail(repositoryRoot)
-	if err != nil {
-		return err
-	}
-	if author == "" || config.ValidateAuthor(author) != nil {
-		author, err = application.prompt(reader, "Author email (not available from Git config)", "", true)
-		if err != nil {
-			return err
-		}
-	}
-	author = strings.TrimSpace(author)
-	if err := config.ValidateAuthor(author); err != nil {
-		return err
-	}
-	timezone, detected := detectTimezone()
-	if !detected {
-		timezone, err = application.prompt(reader, "Timezone (could not be detected)", "UTC", true)
-		if err != nil {
-			return err
-		}
-	}
-	if normalized, valid := validTimezone(timezone); valid {
-		timezone = normalized
-	} else {
-		return fmt.Errorf("invalid timezone %q; use an IANA timezone such as Asia/Taipei", timezone)
-	}
-	language, detected := detectLanguage()
-	if !detected {
-		language, err = application.prompt(reader, "Language (could not be detected)", "zh-TW", true)
-		if err != nil {
-			return err
-		}
-	}
-	language = normalizeLanguage(language)
-	if language == "" {
-		return errors.New("language is required; use a language such as zh-TW or en-US")
-	}
-	journalDefault, err := defaultJournalDestination(name)
-	if err != nil {
-		return err
-	}
-	destination, err := application.prompt(reader, "Journal folder", journalDefault, true)
-	if err != nil {
-		return err
-	}
-	destination, err = expandUserPath(destination)
-	if err != nil {
-		return err
-	}
-	destination, err = filepath.Abs(destination)
-	if err != nil {
-		return fmt.Errorf("resolve journal folder: %w", err)
-	}
-	summaryMode, err := application.chooseDailySummary(reader, config.SummaryBuiltIn)
+	profile, repositoryRoot, author, err := application.collectGuidedProfile(reader, name)
 	if err != nil {
 		return err
 	}
@@ -396,7 +323,7 @@ Ready:
   Journal folder: %s
   Daily summary:  %s
 
-`, name, repositoryRoot, author, timezone, language, destination, dailySummaryLabel(summaryMode))
+`, profile.Name, repositoryRoot, author, profile.Timezone, profile.Language, profile.JournalDestination, dailySummaryLabel(profile.EffectiveSummaryMode()))
 	confirmed, err := application.confirm(reader, "Create these settings?")
 	if err != nil {
 		return err
@@ -406,18 +333,7 @@ Ready:
 		return nil
 	}
 
-	profile, err := config.NewProfile(name, timezone, language, destination, "")
-	if err != nil {
-		return err
-	}
-	profile.SummaryMode = summaryMode
 	configuration := config.Config{Version: config.Version, Profiles: []config.Profile{profile}}
-	if err := configuration.AddAuthor(profile.Name, strings.TrimSpace(author)); err != nil {
-		return err
-	}
-	if err := configuration.AddRepository(profile.Name, repositoryRoot); err != nil {
-		return err
-	}
 	if err := os.MkdirAll(profile.JournalDestination, 0o700); err != nil {
 		return fmt.Errorf("create journal destination: %w", err)
 	}
@@ -426,6 +342,101 @@ Ready:
 	}
 	fmt.Fprintf(application.stdout, "Created profile %q.\n", profile.Name)
 	return nil
+}
+
+func (application cli) collectGuidedProfile(reader *bufio.Reader, name string) (config.Profile, string, string, error) {
+	if err := config.ValidateProfileName(name); err != nil {
+		return config.Profile{}, "", "", err
+	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		return config.Profile{}, "", "", fmt.Errorf("get current directory: %w", err)
+	}
+	repositoryDefault := workingDirectory
+	if root, rootErr := gitRepositoryRoot(workingDirectory); rootErr == nil {
+		repositoryDefault = root
+	}
+	repository, err := application.prompt(reader, "Repository", repositoryDefault, true)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	repository, err = expandUserPath(repository)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	repositoryRoot, err := gitRepositoryRoot(repository)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	author, err := gitAuthorEmail(repositoryRoot)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	if author == "" || config.ValidateAuthor(author) != nil {
+		author, err = application.prompt(reader, "Author email (not available from Git config)", "", true)
+		if err != nil {
+			return config.Profile{}, "", "", err
+		}
+	}
+	author = strings.TrimSpace(author)
+	if err := config.ValidateAuthor(author); err != nil {
+		return config.Profile{}, "", "", err
+	}
+	timezone, detected := detectTimezone()
+	if !detected {
+		timezone, err = application.prompt(reader, "Timezone (could not be detected)", "UTC", true)
+		if err != nil {
+			return config.Profile{}, "", "", err
+		}
+	}
+	if normalized, valid := validTimezone(timezone); valid {
+		timezone = normalized
+	} else {
+		return config.Profile{}, "", "", fmt.Errorf("invalid timezone %q; use an IANA timezone such as Asia/Taipei", timezone)
+	}
+	language, detected := detectLanguage()
+	if !detected {
+		language, err = application.prompt(reader, "Language (could not be detected)", "zh-TW", true)
+		if err != nil {
+			return config.Profile{}, "", "", err
+		}
+	}
+	language = normalizeLanguage(language)
+	if language == "" {
+		return config.Profile{}, "", "", errors.New("language is required; use a language such as zh-TW or en-US")
+	}
+	journalDefault, err := defaultJournalDestination(name)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	destination, err := application.prompt(reader, "Journal folder", journalDefault, true)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	destination, err = expandUserPath(destination)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	destination, err = filepath.Abs(destination)
+	if err != nil {
+		return config.Profile{}, "", "", fmt.Errorf("resolve journal folder: %w", err)
+	}
+	summaryMode, err := application.chooseDailySummary(reader, config.SummaryBuiltIn)
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+
+	profile, err := config.NewProfile(name, timezone, language, destination, "")
+	if err != nil {
+		return config.Profile{}, "", "", err
+	}
+	profile.SummaryMode = summaryMode
+	profile.Authors = []string{author}
+	profile.Repositories = []string{repositoryRoot}
+	if err := config.ValidateProfile(profile); err != nil {
+		return config.Profile{}, "", "", err
+	}
+	return profile, repositoryRoot, author, nil
 }
 
 func (application cli) chooseInitialProfile(reader *bufio.Reader) (string, error) {
@@ -834,8 +845,127 @@ func (values stringListFlag) values() []string {
 }
 
 func (application cli) addProfile(arguments []string) error {
-	if len(arguments) == 0 {
-		return errors.New("usage: worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...] [--summarizer-command <command>]")
+	if len(arguments) == 0 || len(arguments) == 1 && !strings.HasPrefix(arguments[0], "-") {
+		name := ""
+		if len(arguments) == 1 {
+			name = arguments[0]
+		}
+		return application.addProfileGuided(name)
+	}
+	return application.addProfileAdvanced(arguments)
+}
+
+func (application cli) addProfileGuided(name string) error {
+	configuration, err := config.Load(application.paths)
+	if err != nil {
+		return err
+	}
+	reader := bufio.NewReader(application.stdin)
+	if name == "" {
+		name, err = application.chooseAdditionalProfile(reader, configuration)
+		if err != nil {
+			return err
+		}
+	}
+	name = strings.TrimSpace(name)
+	if err := config.ValidateProfileName(name); err != nil {
+		return err
+	}
+	if _, found := configuration.Profile(name); found {
+		return fmt.Errorf("profile %q already exists", name)
+	}
+	profile, repositoryRoot, author, err := application.collectGuidedProfile(reader, name)
+	if err != nil {
+		return err
+	}
+	if err := configuration.AddProfile(profile); err != nil {
+		return err
+	}
+
+	fmt.Fprintf(application.stdout, `
+Ready to add:
+  Profile:        %s
+  Repository:     %s
+  Author:         %s
+  Timezone:       %s
+  Language:       %s
+  Journal folder: %s
+  Daily summary:  %s
+
+`, profile.Name, repositoryRoot, author, profile.Timezone, profile.Language, profile.JournalDestination, dailySummaryLabel(profile.EffectiveSummaryMode()))
+	confirmed, err := application.confirm(reader, "Add this profile?")
+	if err != nil {
+		return err
+	}
+	if !confirmed {
+		fmt.Fprintln(application.stdout, "Profile not added.")
+		return nil
+	}
+	if err := os.MkdirAll(profile.JournalDestination, 0o700); err != nil {
+		return fmt.Errorf("create journal destination: %w", err)
+	}
+	if err := config.Save(application.paths, configuration); err != nil {
+		return err
+	}
+	fmt.Fprintf(application.stdout, "Added profile %q with its author and repository.\n", profile.Name)
+	return nil
+}
+
+func (application cli) chooseAdditionalProfile(reader *bufio.Reader, configuration config.Config) (string, error) {
+	_, hasWork := configuration.Profile("work")
+	_, hasPersonal := configuration.Profile("personal")
+	workDescription := "Work repositories and journals"
+	if hasWork {
+		workDescription = "Already configured"
+	}
+	personalDescription := "Personal repositories and journals"
+	if hasPersonal {
+		personalDescription = "Already configured"
+	}
+	defaultChoice := "3"
+	if !hasWork {
+		defaultChoice = "1"
+	} else if !hasPersonal {
+		defaultChoice = "2"
+	}
+	fmt.Fprintf(application.stdout, `Choose a profile:
+  1. Work      %s
+  2. Personal  %s
+  3. Custom    Choose your own profile name
+
+`, workDescription, personalDescription)
+	choice, err := application.prompt(reader, "Profile", defaultChoice, true)
+	if err != nil {
+		return "", err
+	}
+	switch strings.ToLower(strings.TrimSpace(choice)) {
+	case "1", "work":
+		if hasWork {
+			return "", errors.New("profile \"work\" already exists; choose Personal or Custom")
+		}
+		return "work", nil
+	case "2", "personal":
+		if hasPersonal {
+			return "", errors.New("profile \"personal\" already exists; choose Work or Custom")
+		}
+		return "personal", nil
+	case "3", "custom":
+		name, err := application.prompt(reader, "Profile name (for example client-a)", "", true)
+		if err != nil {
+			return "", err
+		}
+		if err := config.ValidateProfileName(name); err != nil {
+			return "", err
+		}
+		return name, nil
+	default:
+		return "", errors.New("profile must be 1 (Work), 2 (Personal), or 3 (Custom)")
+	}
+}
+
+func (application cli) addProfileAdvanced(arguments []string) error {
+	if len(arguments) == 0 || strings.HasPrefix(arguments[0], "-") {
+		return errors.New("usage: worklog profile add [<name>] or worklog profile add <name> --timezone <zone> --language <language> --journal-destination <path> [--daily-summary <built-in|codex|claude-code>] [--deny-literal <value> ...] [--summarizer-command <command>]")
 	}
 	name := arguments[0]
 	flags := flag.NewFlagSet("profile add", flag.ContinueOnError)

@@ -17,6 +17,7 @@ Usage:
 
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
+  worklog profile add Add another profile with guided prompts
   worklog day         Preview, write, or refresh a daily journal
   worklog settings    Update an existing profile with guided prompts
 
@@ -76,7 +77,7 @@ Usage:
   worklog profile <add|set|list|show|validate>
 
 Commands:
-  add         Add another profile
+  add         Add another profile with guided prompts
   set         Update profile settings with flags
   list        List configured profile names
   show        Print one profile as JSON
@@ -142,25 +143,39 @@ Options:
   -h, --help    Show help for settings
 `
 
-const profileAddHelp = `Add another profile using explicit advanced settings.
+const profileAddHelp = `Add another profile with guided prompts or explicit advanced settings.
 
 Usage:
-  worklog profile add <name> --timezone <zone> --language <language> \\
-    --journal-destination <path> \\
-    [--daily-summary <built-in|codex|claude-code>] \\
-    [--deny-literal <value> ...] \\
+  worklog profile add [<name>]
+  worklog profile add <name> --timezone <zone> --language <language> \
+    --journal-destination <path> \
+    [--daily-summary <built-in|codex|claude-code>] \
+    [--deny-literal <value> ...] \
     [--summarizer-command <command>]
 
+Behavior:
+  With no settings flags, Worklog uses the same guided flow as setup. It can
+  prompt for a Work, Personal, or Custom name, uses the current Git repository
+  as an editable default, detects its author plus system timezone and language,
+  asks for the journal folder and daily summary, then confirms once. The new
+  profile, author identity, and repository mapping are saved together.
+
+  Supplying <name> skips only the profile-name prompt. Explicit flags retain the
+  scriptable advanced form; add author and repository mappings separately when
+  using that form.
+
 Examples:
-  worklog profile add personal --timezone Asia/Taipei --language zh-TW \\
+  worklog profile add
+  worklog profile add personal
+  worklog profile add personal --timezone Asia/Taipei --language zh-TW \
     --journal-destination ~/Documents/worklog/personal
 
 Credentials must not be written in a summarizer command. Let the command read
 them from its environment or system credential storage.
 
 Next:
-  Run worklog author add <profile> <email>, then worklog repo add <profile>
-  <path>.
+  Run worklog profile show <name> to inspect the saved profile. Add more author
+  identities or repositories with worklog author add and worklog repo add.
 `
 
 const authorHelp = `Manage Git author emails recognized by a profile.

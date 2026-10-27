@@ -45,8 +45,6 @@ Next: worklog day
   Codex write the journal in your language.
 - **Private by default.** An AI only sees a cleaned-up list of your work, never
   code, diffs, file paths, or emails. You can hide extra words too.
-- **Richer entries from your agent.** Agents can record how and why you made each
-  change, and the journal includes it.
 - **Obsidian-friendly Markdown.** One file per day, with frontmatter and tags.
 
 ## How it works
@@ -59,10 +57,6 @@ Next: worklog day
    [Recording more detail](#recording-more-detail).
 3. **You run `worklog day`.** worklog writes one journal per profile per day, for
    example `~/Documents/worklog/work/2026/2026-10/2026-10-27.md`.
-
-Profiles keep different parts of your life apart. A typical setup has a `work`
-profile and a `personal` profile, each with its own repositories, email, timezone,
-language, and journal folder. Their journals never mix.
 
 ## Install
 
@@ -351,39 +345,9 @@ worklog profile add local --timezone Asia/Taipei --language zh-TW \
 The command receives the same JSON that `worklog inspect` prints, on stdin. It
 must print one summary JSON object on stdout with `version`, `focus`, `completed`,
 `decisions`, `next_steps`, and `technologies`. worklog still decides the file path
-and writes the Markdown itself. The command has two minutes by default. Change
-that with `WORKLOG_SUMMARIZER_TIMEOUT`, for example `30s`. Keep credentials in the
-command's environment or your system keychain, never in the command line. See
-`worklog day --details` for the full rules.
-
-## For contributors
-
-Run the tests:
-
-```sh
-go test ./...
-```
-
-The acceptance tests build the CLI and run it as a separate program, with
-temporary home, settings, repository, and journal folders. They never touch your
-real data.
-
-Publish a release by pushing a version tag from `main`:
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-GitHub Actions then runs the tests on Linux and macOS. It builds all four
-platforms with `scripts/release.sh` and tries each build on its own platform with
-`scripts/smoke-test.sh`, in a clean environment without Go. The release is
-published only when every step passes. To try a release build locally:
-
-```sh
-scripts/release.sh v0.0.0
-scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
-```
+and writes the Markdown itself. Keep credentials in the command's environment or
+your system keychain, never in the command line. See `worklog day --details` for
+the full rules.
 
 ## License
 

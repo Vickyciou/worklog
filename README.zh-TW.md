@@ -38,7 +38,6 @@ Next: worklog day
 - **工作和私人分開。** 每個 profile 有自己的 repo、email、時區、語言和日誌資料夾。
 - **AI 可有可無。** 可以用完全不需要 AI 的 Built-in，也可以讓 Claude Code 或 Codex 用你的語言寫日誌。
 - **預設就保護隱私。** AI 只會看到整理過的工作清單，看不到程式碼、diff、檔案路徑或 email。你也可以額外指定要隱藏的字。
-- **AI agent 能補上更多細節。** agent 可以記下每個改動的作法和原因，日誌會一起收錄。
 - **Obsidian 友善的 Markdown。** 一天一個檔案，附 frontmatter 和標籤。
 
 ## 運作方式
@@ -46,8 +45,6 @@ Next: worklog day
 1. **你照常 commit。** 在已加入的 repo 裡做的每個 commit 都會算進去，commit 的標題會成為日誌裡的一個項目。
 2. **AI agent 可以順便補上細節（選用）。** 用 Claude Code 或 Codex 這類 agent commit 時，它可以記下你做了什麼、怎麼做、為什麼這樣做。worklog 把這些存成該 commit 的 Git note，日誌內容就會更完整。請看[記錄更多細節](#記錄更多細節)。
 3. **你執行 `worklog day`。** 每個 profile 每天寫一份日誌，例如 `~/Documents/worklog/work/2026/2026-10/2026-10-27.md`。
-
-profile 用來把生活的不同部分分開。常見的設定是一個 `work`、一個 `personal`，各自有自己的 repo、email、時區、語言和日誌資料夾，兩邊的日誌永遠不會混在一起。
 
 ## 安裝
 
@@ -292,31 +289,7 @@ worklog profile add local --timezone Asia/Taipei --language zh-TW \
   --summarizer-command '/path/to/summary-adapter --format json'
 ```
 
-這個指令會從 stdin 收到和 `worklog inspect` 印出的相同 JSON，並必須在 stdout 印出一個摘要 JSON 物件，包含 `version`、`focus`、`completed`、`decisions`、`next_steps` 和 `technologies`。檔案路徑和 Markdown 仍然由 worklog 自己決定與產生。指令預設有兩分鐘的時間上限，可以用 `WORKLOG_SUMMARIZER_TIMEOUT` 調整，例如 `30s`。帳號憑證請放在指令的環境變數或系統鑰匙圈裡，不要寫在指令本身。完整規則請看 `worklog day --details`。
-
-## 給開發者
-
-執行測試：
-
-```sh
-go test ./...
-```
-
-驗收測試會先編譯 CLI，再把它當成獨立程式執行，使用暫時的 home、設定、repo 和日誌資料夾，不會碰到你的真實資料。
-
-從 `main` 推送版本 tag 就能發布新版本：
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-接著 GitHub Actions 會在 Linux 和 macOS 上執行測試，用 `scripts/release.sh` 建出四個平台的版本，再用 `scripts/smoke-test.sh` 在各自的平台、沒有 Go 的乾淨環境中逐一試跑。所有步驟都通過才會發布。想在本機試建發布版本：
-
-```sh
-scripts/release.sh v0.0.0
-scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
-```
+這個指令會從 stdin 收到和 `worklog inspect` 印出的相同 JSON，並必須在 stdout 印出一個摘要 JSON 物件，包含 `version`、`focus`、`completed`、`decisions`、`next_steps` 和 `technologies`。檔案路徑和 Markdown 仍然由 worklog 自己決定與產生。帳號憑證請放在指令的環境變數或系統鑰匙圈裡，不要寫在指令本身。完整規則請看 `worklog day --details`。
 
 ## 授權
 

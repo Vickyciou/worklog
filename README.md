@@ -142,6 +142,19 @@ bytes outside the block, rechecks the previewed file, and atomically replaces it
 after confirmation. `--refresh` regenerates an existing journal even when its facts
 are unchanged, which applies a changed language or daily summary setting.
 
+## Check today's status
+
+```sh
+worklog
+worklog status
+```
+
+Running `worklog` without a command shows one line per profile with its local date,
+the number of commits worklog will use, and whether today's journal is not written
+yet, up to date, or has new changes. Profiles with missing repositories or authors
+are marked as needing attention, and the last line names the next command to run.
+Status never calls a summarizer, writes files, or prints commit content.
+
 ## Inspect daily facts
 
 Inspect one profile's facts for its current local date, or pass a historical date:

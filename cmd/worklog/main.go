@@ -15,16 +15,20 @@ const rootHelp = `worklog records and renders portable work journals.
 Usage:
   worklog <command>
 
+Running worklog without a command shows today's status.
+
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
   worklog profile add Add another profile with guided prompts
-  worklog day         Preview, write, or refresh a daily journal
+  worklog day         Preview, write, or update a daily journal
+  worklog status      Show today's activity and journal state
   worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview, write, or refresh a daily journal
+  day        Preview, write, or update a daily journal
+  status     Show today's activity and journal state
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles
@@ -251,7 +255,28 @@ Options:
   -h, --help    Show help for inspect
 `
 
-const dayHelp = `Preview, write, or refresh a daily journal.
+const statusHelp = `Show today's activity and journal state for every profile.
+
+Usage:
+  worklog status
+  worklog
+
+Behavior:
+  Each profile shows its current local date, the number of commits worklog will
+  use, and whether today's journal is not written yet, up to date, or has new
+  changes. Status never calls a summarizer, writes files, or prints commit
+  content. Profiles with missing repositories, authors, or an unreadable
+  journal are marked as needing attention.
+
+Next:
+  Run worklog day to write or update today's journals, or worklog doctor when a
+  profile needs attention.
+
+Options:
+  -h, --help    Show help for status
+`
+
+const dayHelp = `Preview, write, or update a daily journal.
 
 Usage:
   worklog day [YYYY-MM-DD] [--refresh]
@@ -357,8 +382,7 @@ func run(args []string) int {
 
 func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
-		fmt.Fprint(stdout, rootHelp)
-		return 0
+		args = []string{"status"}
 	}
 
 	switch args[0] {
@@ -383,7 +407,7 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		}
 		fmt.Fprintf(stdout, "worklog %s\n", version)
 		return 0
-	case "setup", "settings", "profile", "author", "repo", "inspect", "day", "doctor":
+	case "setup", "settings", "profile", "author", "repo", "inspect", "day", "status", "doctor":
 		paths, err := config.DefaultPaths()
 		if err != nil {
 			return commandError(stderr, err)
@@ -415,6 +439,7 @@ func helpText(topic []string) (string, bool) {
 		"capture":     captureHelp,
 		"inspect":     inspectHelp,
 		"day":         dayHelp,
+		"status":      statusHelp,
 		"doctor":      doctorHelp,
 	}
 	value, found := help[key]

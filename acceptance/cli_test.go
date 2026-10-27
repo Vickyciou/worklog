@@ -52,16 +52,20 @@ func TestRootHelp(t *testing.T) {
 Usage:
   worklog <command>
 
+Running worklog without a command shows today's status.
+
 Getting started:
   worklog setup       Detect Git and system settings, then create a profile
   worklog profile add Add another profile with guided prompts
-  worklog day         Preview, write, or refresh a daily journal
+  worklog day         Preview, write, or update a daily journal
+  worklog status      Show today's activity and journal state
   worklog settings    Update an existing profile with guided prompts
 
 Commands:
   capture    Record a structured event for a Git commit
   inspect    Collect and print one profile's daily facts
-  day        Preview, write, or refresh a daily journal
+  day        Preview, write, or update a daily journal
+  status     Show today's activity and journal state
   setup      Create the first profile interactively
   settings   Update an existing profile interactively
   profile    Add, update, inspect, and validate profiles
@@ -75,7 +79,7 @@ Options:
   -h, --help       Show help for worklog
   -v, --version    Print version information
 `
-	for _, arguments := range [][]string{nil, {"help"}, {"--help"}, {"-h"}} {
+	for _, arguments := range [][]string{{"help"}, {"--help"}, {"-h"}} {
 		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {
 			environment := newEnvironment(t)
 			result := environment.run(t, arguments...)

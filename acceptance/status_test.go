@@ -35,7 +35,7 @@ func TestStatusReportsEachProfilesJournalStateForToday(t *testing.T) {
 			"--journal-destination", filepath.Join(environment.root, profile.name+"-journal"),
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", profile.name, profile.email))
-		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.repository, "--profile", profile.name))
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)

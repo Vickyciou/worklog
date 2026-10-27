@@ -144,7 +144,7 @@ func TestDayStopsBeforeWritingWhenProfileMappingIsMissing(t *testing.T) {
 	}
 
 	result := environment.runWithInput(t, "yes\n", "day")
-	assertFailedWith(t, result, `profile "personal" has no registered repositories`, "worklog repo add personal <path>")
+	assertFailedWith(t, result, `profile "personal" has no registered repositories`, "worklog repo add <path> --profile personal")
 	if strings.Contains(result.stdout, "Journal preview:") {
 		t.Fatal("incomplete profile produced a preview")
 	}
@@ -160,7 +160,7 @@ func TestDayNeutralizesCapturedManagedMarkersInsideMarkdownText(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)
@@ -202,7 +202,7 @@ func TestDayRechecksDestinationAfterPreviewAndPreservesExistingFile(t *testing.T
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	now := time.Now().UTC().Truncate(time.Second)
 	createCommitAt(t, environment, environment.repository, email,
 		now.Format(time.RFC3339), now.Format(time.RFC3339), "racing day activity", "")
@@ -280,7 +280,7 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 
 	historical := time.Now().UTC().AddDate(0, 0, -7).Truncate(time.Second)
 	date := historical.Format(time.DateOnly)
@@ -361,7 +361,7 @@ func TestDayRefreshRefusesJournalWithoutValidManagedBoundaries(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	commitTime := time.Now().UTC().AddDate(0, 0, -2).Truncate(time.Second)
 	date := commitTime.Format(time.DateOnly)
 	createCommitAt(t, environment, environment.repository, email,
@@ -421,7 +421,7 @@ func TestDayRendersJournalLabelsInProfileLanguage(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)
 	commit := createCommitAt(t, environment, environment.repository, profileEmail,
@@ -475,7 +475,7 @@ func TestDayUpdatesTodaysJournalWithoutRefreshFlag(t *testing.T) {
 		"--summarizer-command", summarizerPath,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)
 	shown := "~/journal/" + date[:4] + "/" + date[:7] + "/" + date + ".md"
@@ -557,7 +557,7 @@ func TestDayHandlesEachProfileJournalStateIndependently(t *testing.T) {
 			"--journal-destination", filepath.Join(environment.root, profile.name+"-journal"),
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", profile.name, email))
-		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.repository, "--profile", profile.name))
 		createCommitAt(t, environment, profile.repository, email,
 			commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), profile.name+" change", "")
 	}

@@ -30,7 +30,7 @@ func TestDoctorPassesCompleteConfigurationWithoutExposingPrivateValues(t *testin
 		"--summarizer-command", adapter,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	commit := environment.createCommit(t)
 	assertSucceeded(t, environment.runWithInput(t,
 		`{"version":1,"outcome":"`+capturedValue+`"}`,
@@ -81,7 +81,7 @@ func TestDoctorReportsActionableRuntimeFailuresWithoutInvokingSummarizer(t *test
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "brokenrepo", "brokenrepo@example.invalid"))
-	assertSucceeded(t, environment.run(t, "repo", "add", "brokenrepo", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "brokenrepo"))
 	movedRepository := environment.repository + "-moved-private"
 	if err := os.Rename(environment.repository, movedRepository); err != nil {
 		t.Fatalf("move registered repository fixture: %v", err)
@@ -100,7 +100,7 @@ func TestDoctorReportsActionableRuntimeFailuresWithoutInvokingSummarizer(t *test
 		`[FAIL] Profile "incomplete" has author identities`,
 		"worklog author add incomplete <email>",
 		`[FAIL] Profile "incomplete" has registered repositories`,
-		"worklog repo add incomplete <path>",
+		"worklog repo add <path> --profile incomplete",
 		`[FAIL] Profile "incomplete" journal destination is writable`,
 		"worklog profile set incomplete --journal-destination <path>",
 		`[FAIL] Profile "incomplete" daily summary executable is available`,

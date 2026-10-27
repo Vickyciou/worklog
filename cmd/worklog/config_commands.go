@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"text/tabwriter"
 	"time"
@@ -109,7 +110,7 @@ func (application cli) planActiveProfiles(configuration config.Config, requested
 	destinations := make(map[string]string)
 	for _, profile := range configuration.Profiles {
 		if len(profile.Repositories) == 0 {
-			return nil, fmt.Errorf("profile %q has no registered repositories; run 'worklog repo add %s <path>'", profile.Name, profile.Name)
+			return nil, fmt.Errorf("profile %q has no registered repositories; run 'worklog repo add <path> --profile %s'", profile.Name, profile.Name)
 		}
 		if len(profile.Authors) == 0 {
 			return nil, fmt.Errorf("profile %q has no author identities; run 'worklog author add %s <email>'", profile.Name, profile.Name)
@@ -306,21 +307,32 @@ func (application cli) inspect(arguments []string) error {
 		fmt.Fprint(application.stdout, inspectHelp)
 		return nil
 	}
-	if len(arguments) < 1 || len(arguments) > 2 {
-		return errors.New("usage: worklog inspect <profile> [YYYY-MM-DD]")
+	profileName, date := "", ""
+	for _, argument := range arguments {
+		switch {
+		case datePattern.MatchString(argument) && date == "":
+			date = argument
+		case !strings.HasPrefix(argument, "-") && profileName == "":
+			profileName = argument
+		default:
+			return errors.New("usage: worklog inspect [profile] [YYYY-MM-DD]")
+		}
 	}
 	configuration, err := config.Load(application.paths)
 	if err != nil {
 		return err
 	}
-	profile, found := configuration.Profile(arguments[0])
-	if !found {
-		return fmt.Errorf("profile %q does not exist", arguments[0])
+	if profileName == "" {
+		profileName, err = inferInspectProfile(configuration)
+		if err != nil {
+			return err
+		}
 	}
-	date := ""
-	if len(arguments) == 2 {
-		date = arguments[1]
-	} else {
+	profile, found := configuration.Profile(profileName)
+	if !found {
+		return fmt.Errorf("profile %q does not exist", profileName)
+	}
+	if date == "" {
 		date, err = dailyfacts.CurrentDate(*profile, time.Now())
 		if err != nil {
 			return err
@@ -337,6 +349,24 @@ func (application cli) inspect(arguments []string) error {
 	}
 	_, err = application.stdout.Write(contents)
 	return err
+}
+
+var datePattern = regexp.MustCompile(`^\d{4}-\d{2}-\d{2}$`)
+
+// inferInspectProfile never prompts, because inspect's stdout is JSON meant for
+// other programs.
+func inferInspectProfile(configuration config.Config) (string, error) {
+	if profile, _, err := configuration.ResolveRepository("."); err == nil {
+		return profile.Name, nil
+	}
+	if len(configuration.Profiles) == 1 {
+		return configuration.Profiles[0].Name, nil
+	}
+	names := make([]string, len(configuration.Profiles))
+	for index, profile := range configuration.Profiles {
+		names[index] = profile.Name
+	}
+	return "", fmt.Errorf("choose a profile: worklog inspect <profile> (%s)", strings.Join(names, ", "))
 }
 
 func (application cli) setup(arguments []string) error {
@@ -1291,25 +1321,65 @@ func (application cli) repository(arguments []string) error {
 }
 
 func (application cli) addRepository(arguments []string) error {
-	if len(arguments) != 2 {
-		return errors.New("usage: worklog repo add <profile> <path>")
+	var paths []string
+	profileName := ""
+	for index := 0; index < len(arguments); index++ {
+		argument := arguments[index]
+		switch {
+		case argument == "--profile" && index+1 < len(arguments) && profileName == "":
+			index++
+			profileName = arguments[index]
+		case strings.HasPrefix(argument, "--profile=") && profileName == "":
+			profileName = strings.TrimPrefix(argument, "--profile=")
+		case !strings.HasPrefix(argument, "-"):
+			paths = append(paths, argument)
+		default:
+			return errors.New("usage: worklog repo add [path] [--profile <name>]")
+		}
+	}
+	if len(paths) == 2 && profileName == "" {
+		return fmt.Errorf("repo add takes the profile as a flag. Use: worklog repo add %s --profile %s", paths[1], paths[0])
+	}
+	if len(paths) > 1 {
+		return errors.New("usage: worklog repo add [path] [--profile <name>]")
+	}
+	path := "."
+	if len(paths) == 1 {
+		path = paths[0]
 	}
 	configuration, err := config.Load(application.paths)
 	if err != nil {
 		return err
 	}
-	repositoryRoot, err := gitRepositoryRoot(arguments[1])
+	repositoryRoot, err := gitRepositoryRoot(path)
 	if err != nil {
 		return err
 	}
-	if err := configuration.AddRepository(arguments[0], repositoryRoot); err != nil {
+	if profileName == "" {
+		profileName, err = application.chooseProfileForRepository(configuration.Profiles)
+		if err != nil {
+			return err
+		}
+	}
+	if err := configuration.AddRepository(profileName, repositoryRoot); err != nil {
 		return err
 	}
 	if err := config.Save(application.paths, configuration); err != nil {
 		return err
 	}
-	fmt.Fprintf(application.stdout, "Registered repository %q to profile %q.\n", repositoryRoot, arguments[0])
+	fmt.Fprintf(application.stdout, "Registered repository %q to profile %q.\n", repositoryRoot, profileName)
 	return nil
+}
+
+func (application cli) chooseProfileForRepository(profiles []config.Profile) (string, error) {
+	switch len(profiles) {
+	case 0:
+		return "", errors.New("no profiles are configured; run worklog setup first")
+	case 1:
+		return profiles[0].Name, nil
+	default:
+		return application.chooseExistingProfile(bufio.NewReader(application.stdin), profiles)
+	}
 }
 
 func (application cli) listRepositories(arguments []string) error {

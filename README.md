@@ -76,7 +76,7 @@ worklog author add personal developer@example.com
 worklog author list personal
 worklog author validate personal
 
-worklog repo add personal /path/to/repository
+worklog repo add /path/to/repository --profile personal
 worklog repo list
 worklog repo show /path/to/repository
 worklog repo validate

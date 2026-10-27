@@ -32,7 +32,7 @@ func TestDaySendsTheInspectedPayloadToAValidatedCommandSummarizer(t *testing.T) 
 		"--summarizer-command", summarizer,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	now := time.Now().UTC().Truncate(time.Second)
 	date := now.Format(time.DateOnly)
 	commit := createCommitAt(t, environment, environment.repository, email,
@@ -112,7 +112,7 @@ func TestDayFallsBackForEveryCommandSummarizerFailure(t *testing.T) {
 				"--summarizer-command", command,
 			))
 			assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-			assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+			assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 			now := time.Now().UTC().Truncate(time.Second)
 			createCommitAt(t, environment, environment.repository, email,
 				now.Format(time.RFC3339), now.Format(time.RFC3339), "Deterministic fallback output", "")

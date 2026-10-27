@@ -38,7 +38,7 @@ func TestInspectEmitsProfileScopedPostRedactionPayload(t *testing.T) {
 			"--deny-literal", profile.denied,
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", profile.name, profile.email))
-		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.repository, "--profile", profile.name))
 	}
 
 	workCommit := createCommitAt(t, environment, environment.repository, workEmail,
@@ -91,7 +91,7 @@ func TestInspectCollectsOnlyTheProfileDailyFactsAtLocalDateBoundaries(t *testing
 		"--summarizer-command", "summarizer-that-must-not-run",
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 
 	beforeBoundary := createCommitAt(t, environment, environment.repository, profileEmail,
 		"2026-09-01T15:59:59Z", "2026-09-01T15:59:59Z", "before local boundary", "")
@@ -224,7 +224,7 @@ func TestInspectDefaultsToTheProfilesCurrentLocalDate(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "local", profileEmail))
-	assertSucceeded(t, environment.run(t, "repo", "add", "local", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "local"))
 
 	location, err := time.LoadLocation("Pacific/Kiritimati")
 	if err != nil {

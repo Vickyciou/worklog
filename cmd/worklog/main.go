@@ -66,8 +66,8 @@ Examples:
   worklog setup
 
 Next:
-  Run worklog day to preview today's journal. Register another repository with
-  worklog repo add <profile> <path>.
+  Run worklog day to preview today's journal. Register another repository by
+  running worklog repo add inside it.
 
 Options:
   -h, --help    Show help for setup
@@ -195,7 +195,7 @@ Examples:
   worklog author validate work
 
 Next:
-  Register the author's repository with worklog repo add <profile> <path>.
+  Register the author's repository with worklog repo add <path> --profile <name>.
 `
 
 const repoHelp = `Manage which Git repositories belong to each profile.
@@ -207,37 +207,41 @@ Usage:
   worklog repo <add|list|show|validate>
 
 Examples:
-  worklog repo add work /path/to/repository
+  worklog repo add
+  worklog repo add /path/to/repository --profile work
   worklog repo list work
   worklog repo show /path/to/repository
   worklog repo validate
 
 Next:
-  Run worklog inspect <profile> to review the facts worklog will use.
+  Run worklog inspect to review the facts worklog will use.
 `
 
 const repoAddHelp = `Add one Git repository to a profile.
 
 Usage:
-  worklog repo add <profile> <path>
+  worklog repo add [path] [--profile <name>]
 
-Example:
-  worklog repo add work /path/to/repository
+Examples:
+  cd /path/to/repository && worklog repo add
+  worklog repo add /path/to/repository --profile work
 
-The path must resolve to a Git repository and must not overlap a repository
-already owned by another profile.
+The path defaults to the current directory and must resolve to a Git
+repository that no other profile already owns. With one profile, it is used
+automatically; with several, choose one from a numbered list or pass --profile.
 
 Next:
-  Run worklog repo validate <path>, then worklog inspect <profile>.
+  Run worklog repo validate <path>, then worklog inspect.
 `
 
 const inspectHelp = `Collect and print one profile's DailyFacts without side effects.
 
 Usage:
-  worklog inspect <profile> [YYYY-MM-DD]
+  worklog inspect [profile] [YYYY-MM-DD]
 
 Behavior:
-  The date defaults to today in the profile's configured timezone. Collection
+  Without a profile, inspect uses the profile that owns the current repository,
+  or the only configured profile. The date defaults to today in the profile's configured timezone. Collection
   scans only repositories registered to the profile, matches configured author
   identities, uses commit timestamps, deduplicates commits across refs, and
   ignores merge commits and refs/notes/worklog by default.
@@ -309,7 +313,7 @@ Behavior:
   provider call or write and include the command needed to repair the mapping.
 
 Next:
-  Run worklog inspect <profile> first when you want to review the source facts.
+  Run worklog inspect first when you want to review the source facts.
 
 Options:
   --refresh     Regenerate an existing journal even when its facts are unchanged,

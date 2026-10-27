@@ -57,7 +57,7 @@ func (application cli) doctor(arguments []string) error {
 			report.check(profileLabel+" has valid author identities", validateAuthors(profile), "Replace invalid entries with 'worklog author add "+profile.Name+" <email>'.")
 		}
 		if len(profile.Repositories) == 0 {
-			report.check(profileLabel+" has registered repositories", errors.New("missing repositories"), "Run 'worklog repo add "+profile.Name+" <path>'.")
+			report.check(profileLabel+" has registered repositories", errors.New("missing repositories"), "Run 'worklog repo add <path> --profile "+profile.Name+"'.")
 		}
 		for index, repository := range profile.Repositories {
 			label := fmt.Sprintf("Repository %d for profile %q", index+1, profile.Name)

@@ -111,8 +111,8 @@ func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
 		{name: "profile set", direct: []string{"profile", "set", "--help"}, help: []string{"help", "profile", "set"}, expectText: "Changing the journal destination does not move"},
 		{name: "author", direct: []string{"author", "--help"}, help: []string{"help", "author"}, expectText: "Manage Git author emails"},
 		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},
-		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add <profile> <path>"},
-		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "worklog inspect <profile>"},
+		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add [path] [--profile <name>]"},
+		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "Run worklog inspect first"},
 		{name: "doctor", direct: []string{"doctor", "--help"}, help: []string{"help", "doctor"}, expectText: "It does not read captured note content"},
 	}
 
@@ -188,10 +188,11 @@ func TestInspectHelpDescribesCollectionAndPrivacyContract(t *testing.T) {
 	const expected = `Collect and print one profile's DailyFacts without side effects.
 
 Usage:
-  worklog inspect <profile> [YYYY-MM-DD]
+  worklog inspect [profile] [YYYY-MM-DD]
 
 Behavior:
-  The date defaults to today in the profile's configured timezone. Collection
+  Without a profile, inspect uses the profile that owns the current repository,
+  or the only configured profile. The date defaults to today in the profile's configured timezone. Collection
   scans only repositories registered to the profile, matches configured author
   identities, uses commit timestamps, deduplicates commits across refs, and
   ignores merge commits and refs/notes/worklog by default.

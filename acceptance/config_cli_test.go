@@ -548,7 +548,7 @@ func TestProfileShowPrintsReadableSettingsWithoutDeniedLiterals(t *testing.T) {
 		"--deny-literal", "internal-host",
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", "developer@example.invalid"))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	repository, err := filepath.EvalSymlinks(environment.repository)
 	if err != nil {
 		t.Fatalf("resolve repository: %v", err)
@@ -638,7 +638,7 @@ func TestProfileAuthorAndRepositoryCommands(t *testing.T) {
 	)
 	assertSucceeded(t, addWork)
 	assertSucceeded(t, environment.run(t, "author", "add", "work", "developer@example.com"))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 
 	addPersonal := environment.run(t,
 		"profile", "add", "personal",
@@ -648,7 +648,7 @@ func TestProfileAuthorAndRepositoryCommands(t *testing.T) {
 	)
 	assertSucceeded(t, addPersonal)
 	assertSucceeded(t, environment.run(t, "author", "add", "personal", "personal@example.net"))
-	assertSucceeded(t, environment.run(t, "repo", "add", "personal", personalRepository))
+	assertSucceeded(t, environment.run(t, "repo", "add", personalRepository, "--profile", "personal"))
 
 	profiles := environment.run(t, "profile", "list")
 	assertSucceeded(t, profiles)
@@ -690,11 +690,11 @@ func TestRepositoryMappingsRejectDuplicatesAndOverlaps(t *testing.T) {
 			"--journal-destination", journal,
 		))
 	}
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 
-	duplicate := environment.run(t, "repo", "add", "personal", environment.repository)
+	duplicate := environment.run(t, "repo", "add", environment.repository, "--profile", "personal")
 	assertFailedWith(t, duplicate, "overlaps", "already owned by profile \"work\"")
-	overlap := environment.run(t, "repo", "add", "personal", nestedRepository)
+	overlap := environment.run(t, "repo", "add", nestedRepository, "--profile", "personal")
 	assertFailedWith(t, overlap, "overlaps", "already owned by profile \"work\"")
 
 	repositories := environment.run(t, "repo", "list")

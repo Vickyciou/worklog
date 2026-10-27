@@ -103,7 +103,7 @@ func TestPresetSummaryUsesProfileLanguage(t *testing.T) {
 		"--daily-summary", "claude-code",
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 	now := time.Date(2026, 9, 10, 9, 0, 0, 0, time.FixedZone("Asia/Taipei", 8*60*60))
 	createCommitAt(t, environment, environment.repository, email,
 		now.Format(time.RFC3339), now.Format(time.RFC3339), "Implement language-aware summaries", "")
@@ -172,7 +172,7 @@ func TestCodexAndClaudeCodePresetsUseTheSharedValidatedBoundary(t *testing.T) {
 					"--daily-summary", provider.mode,
 				))
 				assertSucceeded(t, environment.run(t, "author", "add", "work", email))
-				assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+				assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "work"))
 				now := time.Now().UTC().Truncate(time.Second)
 				commit := createCommitAt(t, environment, environment.repository, email,
 					now.Format(time.RFC3339), now.Format(time.RFC3339), "Preset deterministic fallback", "")

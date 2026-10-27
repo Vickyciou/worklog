@@ -48,7 +48,7 @@ func TestDayKeepsActiveProfileAdapterRequestsAndJournalsSeparate(t *testing.T) {
 			"--summarizer-command", adapter,
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", profile.name, profile.email))
-		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.repository, "--profile", profile.name))
 		commitTime := dateTime.Add(time.Duration(index) * time.Minute)
 		commit := createCommitAt(t, environment, profile.repository, profile.email,
 			commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), profile.name+" metadata", "")
@@ -134,7 +134,7 @@ func TestDayPreflightsAmbiguousActiveJournalDestinationsBeforeWriting(t *testing
 			"--journal-destination", environment.journalDestination,
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", fixture.name, fixture.email))
-		assertSucceeded(t, environment.run(t, "repo", "add", fixture.name, fixture.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", fixture.repository, "--profile", fixture.name))
 		commitTime := dateTime.Add(time.Duration(index) * time.Minute)
 		createCommitAt(t, environment, fixture.repository, fixture.email,
 			commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), fixture.name+" activity", "")
@@ -157,7 +157,7 @@ func TestDaySkipsProfilesWithoutActivity(t *testing.T) {
 		"--journal-destination", environment.journalDestination,
 	))
 	assertSucceeded(t, environment.run(t, "author", "add", "quiet", "quiet@example.invalid"))
-	assertSucceeded(t, environment.run(t, "repo", "add", "quiet", environment.repository))
+	assertSucceeded(t, environment.run(t, "repo", "add", environment.repository, "--profile", "quiet"))
 
 	result := environment.runWithInput(t, "yes\n", "day", "2001-01-01")
 	assertSucceeded(t, result)
@@ -215,7 +215,7 @@ func TestDayContinuesToNextProfileAfterDecline(t *testing.T) {
 			"--journal-destination", journalRoot,
 		))
 		assertSucceeded(t, environment.run(t, "author", "add", profile.name, email))
-		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.repository, "--profile", profile.name))
 		createCommitAt(t, environment, profile.repository, email,
 			dateTime.Format(time.RFC3339), dateTime.Format(time.RFC3339), profile.name+" change", "")
 	}

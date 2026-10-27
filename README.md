@@ -56,6 +56,14 @@ worklog help repo
 worklog help repo add
 ```
 
+`day`, `inspect`, and `doctor` help stays in plain language. Add `--details` for
+their privacy, summary, and file-safety rules:
+
+```sh
+worklog day --details
+worklog help inspect --details
+```
+
 Use the configuration command families to add, inspect, and validate entries:
 
 ```sh

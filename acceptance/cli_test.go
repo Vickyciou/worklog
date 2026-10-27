@@ -114,8 +114,8 @@ func TestCommandHelpIsAvailableThroughDirectAndHelpForms(t *testing.T) {
 		{name: "author", direct: []string{"author", "--help"}, help: []string{"help", "author"}, expectText: "Manage Git author emails"},
 		{name: "repo", direct: []string{"repo", "--help"}, help: []string{"help", "repo"}, expectText: "every repository can belong\nto only one profile"},
 		{name: "repo add", direct: []string{"repo", "add", "--help"}, help: []string{"help", "repo", "add"}, expectText: "worklog repo add [path] [--profile <name>]"},
-		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "Run worklog inspect first"},
-		{name: "doctor", direct: []string{"doctor", "--help"}, help: []string{"help", "doctor"}, expectText: "It does not read captured note content"},
+		{name: "day", direct: []string{"day", "--help"}, help: []string{"help", "day"}, expectText: "It writes only after you type y"},
+		{name: "doctor", direct: []string{"doctor", "--help"}, help: []string{"help", "doctor"}, expectText: "Every problem comes with the command that fixes"},
 	}
 
 	for _, topic := range topics {
@@ -186,32 +186,20 @@ Options:
 	}
 }
 
-func TestInspectHelpDescribesCollectionAndPrivacyContract(t *testing.T) {
-	const expected = `Collect and print one profile's DailyFacts without side effects.
+func TestInspectDetailsDescribeCollectionAndPrivacyContract(t *testing.T) {
+	const expected = `Technical details for worklog inspect.
 
-Usage:
-  worklog inspect [profile] [YYYY-MM-DD]
-
-Behavior:
-  Without a profile, inspect uses the profile that owns the current repository,
-  or the only configured profile. The date defaults to today in the profile's configured timezone. Collection
-  scans only repositories registered to the profile, matches configured author
-  identities, uses commit timestamps, deduplicates commits across refs, and
-  ignores merge commits and refs/notes/worklog by default.
+  Collection scans only repositories registered to the profile, matches
+  configured author identities, uses commit timestamps, deduplicates commits
+  across refs, and ignores merge commits and refs/notes/worklog by default.
 
   Output is JSON and excludes commit hashes, repository paths, author emails,
   commit bodies, raw diffs, source code, and capture source metadata. Inspect
   applies the profile's denied literals and common secret redaction, then prints
   the exact DailyFacts payload an adapter would receive. It never invokes the
   configured summarizer or writes a journal.
-
-Next:
-  Run worklog day to preview today's journal.
-
-Options:
-  -h, --help    Show help for inspect
 `
-	for _, arguments := range [][]string{{"inspect", "--help"}, {"inspect", "-h"}, {"help", "inspect"}} {
+	for _, arguments := range [][]string{{"inspect", "--details"}, {"help", "inspect", "--details"}} {
 		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {
 			environment := newEnvironment(t)
 			result := environment.run(t, arguments...)
@@ -226,6 +214,41 @@ Options:
 				t.Fatalf("stdout mismatch\n--- got ---\n%s--- want ---\n%s", result.stdout, expected)
 			}
 		})
+	}
+}
+
+func TestEverydayHelpAvoidsInternalTermsAndPointsToDetails(t *testing.T) {
+	environment := newEnvironment(t)
+	internalTerms := []string{"DailyFacts", "DailySummary", "managed block", "managed-block", "schema", "payload", "adapter"}
+	for _, test := range []struct {
+		command       string
+		details       bool
+		detailsExpect string
+	}{
+		{command: "day", details: true, detailsExpect: "exactly one valid managed block"},
+		{command: "inspect", details: true, detailsExpect: "DailyFacts payload"},
+		{command: "doctor", details: true, detailsExpect: "It does not read captured note content"},
+		{command: "status"},
+	} {
+		help := environment.run(t, test.command, "--help")
+		assertSucceeded(t, help)
+		for _, term := range internalTerms {
+			if strings.Contains(help.stdout, term) {
+				t.Errorf("%s --help contains internal term %q", test.command, term)
+			}
+		}
+		if !test.details {
+			if strings.Contains(help.stdout, "--details") {
+				t.Errorf("%s --help mentions --details without providing them", test.command)
+			}
+			continue
+		}
+		assertContains(t, help.stdout, "--details")
+		for _, arguments := range [][]string{{test.command, "--details"}, {"help", test.command, "--details"}} {
+			details := environment.run(t, arguments...)
+			assertSucceeded(t, details)
+			assertContains(t, details.stdout, test.detailsExpect)
+		}
 	}
 }
 

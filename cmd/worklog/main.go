@@ -236,29 +236,26 @@ Next:
   Run worklog repo validate <path>, then worklog inspect.
 `
 
-const inspectHelp = `Collect and print one profile's DailyFacts without side effects.
+const inspectHelp = `Show the facts worklog collected for one day, without writing anything.
 
 Usage:
   worklog inspect [profile] [YYYY-MM-DD]
 
-Behavior:
-  Without a profile, inspect uses the profile that owns the current repository,
-  or the only configured profile. The date defaults to today in the profile's configured timezone. Collection
-  scans only repositories registered to the profile, matches configured author
-  identities, uses commit timestamps, deduplicates commits across refs, and
-  ignores merge commits and refs/notes/worklog by default.
+What it shows:
+  The commits and recorded notes worklog would summarize, after private values
+  are removed. This is exactly what an AI summary would receive. Inspect never
+  calls an AI or writes a journal.
 
-  Output is JSON and excludes commit hashes, repository paths, author emails,
-  commit bodies, raw diffs, source code, and capture source metadata. Inspect
-  applies the profile's denied literals and common secret redaction, then prints
-  the exact DailyFacts payload an adapter would receive. It never invokes the
-  configured summarizer or writes a journal.
+  Without a profile, inspect uses the profile that owns the current repository,
+  or the only configured profile. The date defaults to today in the profile's
+  timezone.
 
 Next:
   Run worklog day to preview today's journal.
 
 Options:
   -h, --help    Show help for inspect
+  --details     Show what is collected and what is removed
 `
 
 const statusHelp = `Show today's activity and journal state for every profile.
@@ -267,12 +264,11 @@ Usage:
   worklog status
   worklog
 
-Behavior:
-  Each profile shows its current local date, the number of commits worklog will
-  use, and whether today's journal is not written yet, up to date, or has new
-  changes. Status never calls a summarizer, writes files, or prints commit
-  content. Profiles with missing repositories, authors, or an unreadable
-  journal are marked as needing attention.
+What it shows:
+  One line per profile with its local date, how many commits worklog found
+  today, and whether today's journal is not written yet, up to date, or has
+  new changes. Profiles with a setup problem are marked as needing attention.
+  Status only reads; it never calls an AI, writes files, or shows commit text.
 
 Next:
   Run worklog day to write or update today's journals, or worklog doctor when a
@@ -282,64 +278,51 @@ Options:
   -h, --help    Show help for status
 `
 
-const dayHelp = `Preview, write, or update a daily journal.
+const dayHelp = `Write or update the daily journal from your commits.
 
 Usage:
   worklog day [YYYY-MM-DD] [--refresh]
 
-Behavior:
-  Worklog discovers every profile with activity on the requested day. With no date,
-  each profile uses today in its own timezone; YYYY-MM-DD selects a historical date.
-  Each active profile gets a separate post-redaction DailyFacts payload, summary,
-  preview, confirmation, and journal destination. Codex, Claude
-  Code, and an advanced summarizer command all receive that boundary and must
-  return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
-  empty, malformed, or invalid providers use the deterministic Built-in fallback.
-  Codex and Claude Code are instructed to use the profile language for summary
-  prose while preserving public technology names and identifiers. Built-in
-  preserves captured text and does not translate it. Journal headings use
-  Chinese for zh languages and English for every other language.
-  Worklog then renders and previews the complete journal. The
-  destination is:
+What happens:
+  1. Worklog collects the day's commits from each profile's repositories.
+  2. It summarizes them with the profile's daily summary choice and shows the
+     whole journal, or only the changed lines when the journal already exists.
+  3. It writes only after you type y. Notes you add outside the worklog
+     section are kept.
 
-    <journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md
+  Each profile is handled on its own and uses today in its own timezone.
+  Running day again later the same day adds the new work; if nothing changed,
+  day says the journal is up to date. Journals are saved as
+  <journal folder>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md.
 
-  Only an explicit y or yes writes the journal. Running day again for the same
-  date updates the existing journal: when the collected facts are unchanged, day
-  reports that the journal is up to date without calling a summarizer; otherwise
-  it previews the managed-block diff and asks before replacing it. An update
-  requires exactly one valid managed block, preserves every byte outside it,
-  and atomically replaces the file after confirmation.
-
-  Profiles without registered repositories or author identities stop before any
-  provider call or write and include the command needed to repair the mapping.
+Examples:
+  worklog day               Today
+  worklog day 2026-10-20    A past day
 
 Next:
-  Run worklog inspect first when you want to review the source facts.
+  Run worklog inspect first when you want to see the facts worklog collected.
 
 Options:
-  --refresh     Regenerate an existing journal even when its facts are unchanged,
-                for example after changing the language or daily summary
+  --refresh     Rebuild an existing journal even when no commits changed, for
+                example after changing the language or daily summary
   -h, --help    Show help for day
+  --details     Show privacy, summary, and file-safety details
 `
 
-const doctorHelp = `Diagnose worklog configuration and runtime prerequisites.
+const doctorHelp = `Find setup problems and how to fix them.
 
 Usage:
   worklog doctor
 
-Behavior:
-  Doctor checks Git, config and state roots, profiles, author identities,
-  repository mappings, the Git notes ref, journal destinations, and configured
-  summary executables. It does not read captured note content, invoke a summary
-  provider, probe provider credentials, or print paths, commands, denied literals,
-  credentials, or captured facts.
-
-  Every failed check includes an action to repair it. Any failure produces a
-  non-zero exit status.
+What it checks:
+  Git, your profiles, their author emails and repositories, journal folders,
+  and the daily summary tools. Every problem comes with the command that fixes
+  it, and doctor exits with an error when it finds one. Doctor never shows your
+  commits, paths, or private values, and never calls an AI.
 
 Options:
   -h, --help    Show help for doctor
+  --details     Show every check and what doctor never reads
 `
 
 const captureHelp = `Record a versioned WorklogEvent as a Git note.
@@ -376,6 +359,60 @@ Options:
   -h, --help    Show help for capture
 `
 
+const dayDetails = `Technical details for worklog day.
+
+  Worklog discovers every profile with activity on the requested day. With no date,
+  each profile uses today in its own timezone; YYYY-MM-DD selects a historical date.
+  Each active profile gets a separate post-redaction DailyFacts payload, summary,
+  preview, confirmation, and journal destination. Codex, Claude
+  Code, and an advanced summarizer command all receive that boundary and must
+  return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
+  empty, malformed, or invalid providers use the deterministic Built-in fallback.
+  Codex and Claude Code are instructed to use the profile language for summary
+  prose while preserving public technology names and identifiers. Built-in
+  preserves captured text and does not translate it. Journal headings use
+  Chinese for zh languages and English for every other language.
+  Worklog then renders and previews the complete journal. The
+  destination is:
+
+    <journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md
+
+  Only an explicit y or yes writes the journal. Running day again for the same
+  date updates the existing journal: when the collected facts are unchanged, day
+  reports that the journal is up to date without calling a summarizer; otherwise
+  it previews the managed-block diff and asks before replacing it. An update
+  requires exactly one valid managed block, preserves every byte outside it,
+  and atomically replaces the file after confirmation.
+
+  Profiles without registered repositories or author identities stop before any
+  provider call or write and include the command needed to repair the mapping.
+`
+
+const inspectDetails = `Technical details for worklog inspect.
+
+  Collection scans only repositories registered to the profile, matches
+  configured author identities, uses commit timestamps, deduplicates commits
+  across refs, and ignores merge commits and refs/notes/worklog by default.
+
+  Output is JSON and excludes commit hashes, repository paths, author emails,
+  commit bodies, raw diffs, source code, and capture source metadata. Inspect
+  applies the profile's denied literals and common secret redaction, then prints
+  the exact DailyFacts payload an adapter would receive. It never invokes the
+  configured summarizer or writes a journal.
+`
+
+const doctorDetails = `Technical details for worklog doctor.
+
+  Doctor checks Git, config and state roots, profiles, author identities,
+  repository mappings, the Git notes ref, journal destinations, and configured
+  summary executables. It does not read captured note content, invoke a summary
+  provider, probe provider credentials, or print paths, commands, denied literals,
+  credentials, or captured facts.
+
+  Every failed check includes an action to repair it. Any failure produces a
+  non-zero exit status.
+`
+
 var version = "dev"
 
 func main() {
@@ -390,9 +427,23 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	if len(args) == 0 {
 		args = []string{"status"}
 	}
+	if len(args) == 2 && args[1] == "--details" {
+		if details, found := detailsText[args[0]]; found {
+			fmt.Fprint(stdout, details)
+			return 0
+		}
+	}
 
 	switch args[0] {
 	case "help":
+		if len(args) == 3 && args[2] == "--details" {
+			details, found := detailsText[args[1]]
+			if !found {
+				return usageError(stderr, "no details for help topic %q", args[1])
+			}
+			fmt.Fprint(stdout, details)
+			return 0
+		}
 		help, found := helpText(args[1:])
 		if !found {
 			return usageError(stderr, "unknown help topic %q", strings.Join(args[1:], " "))
@@ -426,6 +477,12 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 	default:
 		return usageError(stderr, "unknown command %q", args[0])
 	}
+}
+
+var detailsText = map[string]string{
+	"day":     dayDetails,
+	"inspect": inspectDetails,
+	"doctor":  doctorDetails,
 }
 
 func helpText(topic []string) (string, bool) {

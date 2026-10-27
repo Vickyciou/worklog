@@ -83,6 +83,6 @@ M4 不依賴 M3。使用者於 2026-10-27 決定先完成 M4 再進行 M3。M4 �
 3. 31 — Root help 依使用頻率分組
 4. 32 — 指令說明改用白話，技術細節移到 `--details`
 
-**Status:** in progress
+**Status:** complete（2026-10-27）
 
 M5 不依賴 M3。使用者於 2026-10-27 決定接著 M4 進行 M5，並排除打錯字提示的建議。M5 完成條件：26 至 32 的 acceptance criteria 全部通過。

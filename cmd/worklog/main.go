@@ -413,7 +413,11 @@ const doctorDetails = `Technical details for worklog doctor.
   non-zero exit status.
 `
 
-var version = "dev"
+// version and commit are set by scripts/release.sh through -ldflags.
+var (
+	version = "dev"
+	commit  = ""
+)
 
 func main() {
 	os.Exit(run(os.Args[1:]))
@@ -462,7 +466,11 @@ func runWithIO(args []string, stdin io.Reader, stdout, stderr io.Writer) int {
 		if len(args) != 1 {
 			return usageError(stderr, "%q does not accept arguments", args[0])
 		}
-		fmt.Fprintf(stdout, "worklog %s\n", version)
+		if commit == "" {
+			fmt.Fprintf(stdout, "worklog %s\n", version)
+		} else {
+			fmt.Fprintf(stdout, "worklog %s (%s)\n", version, commit)
+		}
 		return 0
 	case "setup", "settings", "profile", "author", "repo", "inspect", "day", "status", "doctor":
 		paths, err := config.DefaultPaths()

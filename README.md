@@ -5,6 +5,62 @@
 Building and testing require Go 1.23 or newer. The compiled CLI does not require a
 Go installation at runtime.
 
+## Install a release
+
+Releases provide one executable for each supported platform: macOS and Linux on
+arm64 (Apple silicon) and amd64 (Intel). Each release also has a `SHA256SUMS` file
+and names the commit it was built from.
+
+1. Download your platform's executable and the checksums. The repository is
+   private, so use the GitHub CLI with an account that can read it:
+
+   ```sh
+   version=v0.1.0
+   platform=darwin_arm64   # or darwin_amd64, linux_amd64, linux_arm64
+   gh release download "$version" --repo Vickyciou/worklog \
+     --pattern "worklog_${version}_${platform}" --pattern SHA256SUMS
+   ```
+
+2. Verify the download. Every line must end with `OK`:
+
+   ```sh
+   shasum -a 256 -c SHA256SUMS --ignore-missing
+   ```
+
+3. Put it on your `PATH` as `worklog`:
+
+   ```sh
+   install -m 755 "worklog_${version}_${platform}" ~/bin/worklog
+   worklog version
+   ```
+
+   If you downloaded the macOS file with a browser, also run
+   `xattr -d com.apple.quarantine ~/bin/worklog`.
+
+4. Go to a Git repository you work in and run `worklog setup`.
+
+To upgrade, repeat steps 1 to 3 with the new version. Configuration, captured Git
+notes, and journals live outside the executable and stay unchanged.
+
+## Publish a release
+
+Push a version tag from `main`:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+The release workflow runs the tests on Linux and macOS, builds all four
+executables with `scripts/release.sh`, and runs `scripts/smoke-test.sh` for each
+one on its own platform in a fresh environment with no Go toolchain. The GitHub
+release is created only when every step passes. To check a build locally:
+
+```sh
+scripts/release.sh v0.0.0
+scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
+```
+
 ## Build
 
 From the repository root, build the CLI with:

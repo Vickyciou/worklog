@@ -26,6 +26,7 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 	input := strings.Join([]string{
 		"1",
 		"",
+		"",
 		environment.journalDestination,
 		"",
 		"y",
@@ -41,6 +42,7 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		t.Fatalf("stderr = %q, want empty", result.stderr)
 	}
 	assertContains(t, result.stdout, `Created profile "work".`)
+	assertContains(t, result.stdout, "Journal language [zh-TW]:")
 	assertContains(t, result.stdout, "Daily summary:  Built-in (no AI or network)")
 	if strings.Contains(result.stdout, secret) {
 		t.Fatal("setup output leaked provider secret")
@@ -125,7 +127,7 @@ func TestSetupSupportsPersonalAndCustomProfiles(t *testing.T) {
 			})
 			assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
 			input := append([]string{}, test.inputLines...)
-			input = append(input, "", environment.journalDestination, "", "y", "")
+			input = append(input, "", "", environment.journalDestination, "", "y", "")
 
 			result := environment.runWithInput(t, strings.Join(input, "\n"), "setup")
 
@@ -150,7 +152,7 @@ func TestSetupAcceptsRepositoryAndJournalDefaults(t *testing.T) {
 	if err := os.MkdirAll(nestedDirectory, 0o700); err != nil {
 		t.Fatalf("create nested working directory: %v", err)
 	}
-	input := strings.Join([]string{"", "", "", "", "y", ""}, "\n")
+	input := strings.Join([]string{"", "", "", "", "", "y", ""}, "\n")
 
 	result := environment.runWithInputAt(t, nestedDirectory, input, "setup")
 
@@ -178,7 +180,7 @@ func TestSetupExpandsHomePaths(t *testing.T) {
 	if result := runCommand(t, git); result.exitCode != 0 {
 		t.Fatalf("configure alternate repository: %s", result.stderr)
 	}
-	input := strings.Join([]string{"2", "~/other-repository", "~/journals/personal", "", "y", ""}, "\n")
+	input := strings.Join([]string{"2", "~/other-repository", "", "~/journals/personal", "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "setup")
 
@@ -209,6 +211,7 @@ func TestSetupPromptsOnlyWhenGitAuthorCannotBeDetected(t *testing.T) {
 		"1",
 		"",
 		"fallback@example.invalid",
+		"",
 		environment.journalDestination,
 		"",
 		"y",
@@ -246,9 +249,30 @@ func TestSetupPromptsForUndetectableTimezoneAndLanguage(t *testing.T) {
 
 	assertSucceeded(t, result)
 	assertContains(t, result.stdout, "Timezone (could not be detected) [UTC]:")
-	assertContains(t, result.stdout, "Language (could not be detected) [zh-TW]:")
+	assertContains(t, result.stdout, "Journal language [zh-TW]:")
 	assertContains(t, result.stdout, "Timezone:       Asia/Taipei")
 	assertContains(t, result.stdout, "Language:       en-US")
+}
+
+func TestSetupLetsUserOverrideDetectedLanguage(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "zh_TW.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+	input := strings.Join([]string{"1", "", "en-US", environment.journalDestination, "", "y", ""}, "\n")
+
+	result := environment.runWithInput(t, input, "setup")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "Journal language [zh-TW]:")
+	assertContains(t, result.stdout, "Language:       en-US")
+	show := environment.run(t, "profile", "show", "work", "--json")
+	assertSucceeded(t, show)
+	assertContains(t, show.stdout, `"language": "en-US"`)
 }
 
 func TestSetupCancellationHasNoSideEffects(t *testing.T) {
@@ -261,7 +285,7 @@ func TestSetupCancellationHasNoSideEffects(t *testing.T) {
 	})
 	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
 	journal := filepath.Join(environment.root, "cancelled-journal")
-	input := strings.Join([]string{"1", "", journal, "", "n", ""}, "\n")
+	input := strings.Join([]string{"1", "", "", journal, "", "n", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "setup")
 
@@ -297,7 +321,7 @@ func TestGuidedProfileAddCreatesProfileAuthorAndRepository(t *testing.T) {
 		"--journal-destination", filepath.Join(environment.root, "work-journal"),
 	))
 	personalJournal := filepath.Join(environment.root, "personal-journal")
-	input := strings.Join([]string{"", "", personalJournal, "", "y", ""}, "\n")
+	input := strings.Join([]string{"", "", "", personalJournal, "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "profile", "add")
 
@@ -347,7 +371,7 @@ func TestGuidedProfileAddWithNameCancellationHasNoSideEffects(t *testing.T) {
 		t.Fatalf("read configuration before guided add: %v", err)
 	}
 	journal := filepath.Join(environment.root, "cancelled-client-journal")
-	input := strings.Join([]string{"", journal, "", "n", ""}, "\n")
+	input := strings.Join([]string{"", "", journal, "", "n", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "profile", "add", "client-a")
 
@@ -377,7 +401,7 @@ func TestGuidedProfileAddRejectsRepositoryConflictWithoutSideEffects(t *testing.
 		"LANG":        "en_US.UTF-8",
 	})
 	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.invalid"))
-	setupInput := strings.Join([]string{"1", "", filepath.Join(environment.root, "work-journal"), "", "y", ""}, "\n")
+	setupInput := strings.Join([]string{"1", "", "", filepath.Join(environment.root, "work-journal"), "", "y", ""}, "\n")
 	assertSucceeded(t, environment.runWithInput(t, setupInput, "setup"))
 	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
 	before, err := os.ReadFile(configurationPath)
@@ -385,7 +409,7 @@ func TestGuidedProfileAddRejectsRepositoryConflictWithoutSideEffects(t *testing.
 		t.Fatalf("read configuration before conflicting add: %v", err)
 	}
 	journal := filepath.Join(environment.root, "conflicting-personal-journal")
-	input := strings.Join([]string{"", journal, "", "y", ""}, "\n")
+	input := strings.Join([]string{"", "", journal, "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "profile", "add", "personal")
 

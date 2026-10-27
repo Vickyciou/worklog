@@ -34,6 +34,7 @@ func TestDayPreviewsAndWritesDeterministicOfflineJournal(t *testing.T) {
 	setupInput := strings.Join([]string{
 		"1",
 		"",
+		"",
 		environment.journalDestination,
 		"",
 		"y",

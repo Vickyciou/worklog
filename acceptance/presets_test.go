@@ -28,7 +28,7 @@ func TestSetupAndSettingsDiscoverPresetsWithoutCredentialProbes(t *testing.T) {
 	assertSucceeded(t, environment.git(t, "config", "user.email", "presets@example.invalid"))
 	invocationLog := filepath.Join(environment.root, "provider-invocation")
 	environment.environment = append(environment.environment, "WORKLOG_PRESET_ARGS="+invocationLog)
-	setupInput := strings.Join([]string{"1", "", environment.journalDestination, "2", "", ""}, "\n")
+	setupInput := strings.Join([]string{"1", "", "", environment.journalDestination, "2", "", ""}, "\n")
 
 	setup := environment.runWithInput(t, setupInput, "setup")
 
@@ -63,7 +63,7 @@ func TestUnavailablePresetKeepsBuiltInAvailable(t *testing.T) {
 		"LANG":        "en_US.UTF-8",
 	})
 	assertSucceeded(t, environment.git(t, "config", "user.email", "presets@example.invalid"))
-	input := strings.Join([]string{"1", "", environment.journalDestination, "2", ""}, "\n")
+	input := strings.Join([]string{"1", "", "", environment.journalDestination, "2", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "setup")
 

@@ -34,9 +34,11 @@ worklog setup
 
 Choose a Work, Personal, or Custom profile. The current Git root and a
 profile-specific journal folder are editable defaults. Setup reads the effective
-author email from Git, detects timezone and language, and shows every resolved value
-for one final confirmation. If Git has no author email or the timezone cannot be
-detected safely, setup asks only for the missing value. Daily summary choices are
+author email from Git, detects the timezone, and asks for the journal language with
+the system language as the default. Language sets the journal headings and the
+language of AI summaries. Setup shows every resolved value for one final
+confirmation. If Git has no author email or the timezone cannot be detected safely,
+setup asks for the missing value. Daily summary choices are
 Built-in, Codex, and Claude Code. Built-in needs no AI or network; the other choices
 appear only when their executable is available and reuse the CLI's current session.
 Worklog never probes or stores provider credentials.
@@ -82,7 +84,7 @@ worklog repo validate
 
 `profile add [name]` without settings flags follows the guided setup flow. It
 uses the current Git repository as an editable default, detects its author plus
-the system timezone and language, asks for the journal folder and daily summary,
+the system timezone, asks for the journal language, journal folder, and daily summary,
 then saves the profile, author identity, and repository mapping after one final
 confirmation. Omit `name` to choose Work, Personal, or Custom from a menu. The
 long flags form remains available for scripts and advanced configuration.

@@ -444,12 +444,13 @@ func (application cli) collectGuidedProfile(reader *bufio.Reader, name string) (
 	} else {
 		return config.Profile{}, "", "", fmt.Errorf("invalid timezone %q; use an IANA timezone such as Asia/Taipei", timezone)
 	}
-	language, detected := detectLanguage()
+	languageDefault, detected := detectLanguage()
 	if !detected {
-		language, err = application.prompt(reader, "Language (could not be detected)", "zh-TW", true)
-		if err != nil {
-			return config.Profile{}, "", "", err
-		}
+		languageDefault = "zh-TW"
+	}
+	language, err := application.prompt(reader, "Journal language", languageDefault, true)
+	if err != nil {
+		return config.Profile{}, "", "", err
 	}
 	language = normalizeLanguage(language)
 	if language == "" {

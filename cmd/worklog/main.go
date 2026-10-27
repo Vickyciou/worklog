@@ -51,10 +51,10 @@ Usage:
 Behavior:
   Choose Work, Personal, or a custom profile name. The current Git repository
   and ~/Documents/worklog/<profile> are editable defaults. Worklog reads the
-  author email from that repository and detects timezone and language from the
-  environment or operating system. If a required value cannot be detected,
-  setup asks only for that value. Language sets the journal headings and the
-  language that Codex and Claude Code summaries use.
+  author email from that repository and detects the timezone. Setup asks for the
+  journal language with the system language as the default; it sets the journal
+  headings and the language that Codex and Claude Code summaries use. If the
+  author email or timezone cannot be detected, setup asks for that value too.
 
   Setup offers Built-in plus installed Codex and Claude Code CLIs. Built-in uses
   no AI or network; provider presets reuse their CLI's current session without
@@ -162,8 +162,8 @@ Usage:
 Behavior:
   With no settings flags, Worklog uses the same guided flow as setup. It can
   prompt for a Work, Personal, or Custom name, uses the current Git repository
-  as an editable default, detects its author plus system timezone and language,
-  asks for the journal folder and daily summary, then confirms once. The new
+  as an editable default, detects its author and system timezone, asks for the
+  journal language, journal folder, and daily summary, then confirms once. The new
   profile, author identity, and repository mapping are saved together.
 
   Supplying <name> skips only the profile-name prompt. Explicit flags retain the

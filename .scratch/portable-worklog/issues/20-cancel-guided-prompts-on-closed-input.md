@@ -18,5 +18,5 @@
 ## Comments
 
 - 2026-10-27：重現方式為 `worklog settings < /dev/null`。每題套用預設值，最後印出 `Updated profile "work".` 且 exit 0。原因在 `cmd/worklog/config_commands.go` 的 `prompt` 與 `confirm`：兩者把 `io.EOF` 當成空字串，而空字串代表接受預設值，`confirm` 的預設又是 yes。`setup` 與 `profile add` 共用同一組函式，依程式碼推論有相同問題，尚未實際執行驗證。
-- 2026-10-27：`prompt` 與 `confirm` 改用共用的 `readAnswer`，沒有任何內容就遇到 EOF 時回傳取消錯誤；有內容但沒有換行的最後一行仍有效。新 acceptance test 以關閉的 stdin 驗證 `setup`、`settings`、`profile add` 都取消且 config 不變，也確認了 `setup` 與 `profile add` 原本有相同問題。11 個既有 tests 原本依賴 EOF 自動確認，已改為明確輸入 `y`。
+- 2026-10-27：`prompt` 與 `confirm` 改用共用的 `readAnswer`，沒有任何內容就遇到 EOF 時回傳取消錯誤；有內容但沒有換行的最後一行仍有效。新 acceptance test 以關閉的 stdin 驗證 `setup`、`settings`、`profile add` 都取消且 config 不變；修正前該測試在 `setup` 步驟即失敗，確認 `setup` 原本有相同問題。11 個既有 tests 原本依賴 EOF 自動確認，已改為明確輸入 `y`。
 - 2026-10-27：`go test ./...`、`go vet ./...` 與 `git diff --check` 通過。`TestDayFallsBackForEveryCommandSummarizerFailure/empty_stdout` 在一次完整執行中因 500ms summarizer timeout 失敗，單獨重跑三次與完整重跑皆通過，判斷為既有的負載相關 flaky test，與本次修改無關。

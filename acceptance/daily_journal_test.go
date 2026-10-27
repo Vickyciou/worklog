@@ -84,11 +84,8 @@ tags: [工作日誌]
 `, date, digestText, date)
 
 	declined := environment.runWithInput(t, "no\n", "day")
-	if declined.exitCode == 0 {
-		t.Fatal("unconfirmed day exit code = 0, want non-zero")
-	}
-	assertContains(t, declined.stderr, "journal write not confirmed")
-	if declined.stdout != fmt.Sprintf("Journal preview: %s\n\n%s\nWrite this journal? [y/N]: \n", destination, expected) {
+	assertSucceeded(t, declined)
+	if declined.stdout != fmt.Sprintf("Journal preview: %s\n\n%s\nWrite this journal? [y/N]: \nNot written. Run worklog day again when you're ready.\n", destination, expected) {
 		t.Fatalf("day preview mismatch\n--- got ---\n%s--- want ---\n%s", declined.stdout, expected)
 	}
 	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
@@ -325,10 +322,8 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 	withoutFlag := environment.runWithInput(t, "yes\n", "day", date)
 	assertFailedWith(t, withoutFlag, "journal already exists")
 	declined := environment.runWithInput(t, "no\n", "day", date, "--refresh")
-	if declined.exitCode == 0 {
-		t.Fatal("declined refresh succeeded")
-	}
-	assertContains(t, declined.stderr, "journal refresh not confirmed")
+	assertSucceeded(t, declined)
+	assertContains(t, declined.stdout, "Not updated. Run worklog day again when you're ready.")
 	assertContains(t, declined.stdout, "Journal refresh diff: "+destination)
 	assertContains(t, declined.stdout, "--- existing managed block")
 	assertContains(t, declined.stdout, "+- Historical refreshed outcome")

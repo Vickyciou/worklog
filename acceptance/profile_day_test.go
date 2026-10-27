@@ -193,3 +193,45 @@ printf '{"version":1,"focus":["%s"],"completed":[{"topic":"Adapter","items":[{"o
 		t.Fatalf("write profile adapter: %v", err)
 	}
 }
+
+func TestDayContinuesToNextProfileAfterDecline(t *testing.T) {
+	environment := newEnvironment(t)
+	personalRepository := filepath.Join(environment.root, "personal-repository")
+	initializeGitRepository(t, personalRepository, environment.environment)
+	dateTime := time.Now().UTC().AddDate(0, 0, -3).Truncate(time.Second)
+	date := dateTime.Format(time.DateOnly)
+	destinations := make(map[string]string)
+	for _, profile := range []struct{ name, repository string }{
+		{name: "work", repository: environment.repository},
+		{name: "personal", repository: personalRepository},
+	} {
+		journalRoot := filepath.Join(environment.root, profile.name+"-journal")
+		destinations[profile.name] = filepath.Join(journalRoot, date[:4], date[:7], date+".md")
+		email := profile.name + "-decline@example.invalid"
+		assertSucceeded(t, environment.run(t,
+			"profile", "add", profile.name,
+			"--timezone", "UTC",
+			"--language", "en",
+			"--journal-destination", journalRoot,
+		))
+		assertSucceeded(t, environment.run(t, "author", "add", profile.name, email))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		createCommitAt(t, environment, profile.repository, email,
+			dateTime.Format(time.RFC3339), dateTime.Format(time.RFC3339), profile.name+" change", "")
+	}
+
+	result := environment.runWithInput(t, "no\nyes\n", "day", date)
+
+	assertSucceeded(t, result)
+	declinedProfile, writtenProfile := "work", "personal"
+	if strings.Index(result.stdout, "Journal preview [personal]:") < strings.Index(result.stdout, "Journal preview [work]:") {
+		declinedProfile, writtenProfile = "personal", "work"
+	}
+	assertContains(t, result.stdout, "Not written. Run worklog day again when you're ready.")
+	if _, err := os.Stat(destinations[declinedProfile]); !os.IsNotExist(err) {
+		t.Fatalf("declined %s journal exists: %v", declinedProfile, err)
+	}
+	if _, err := os.Stat(destinations[writtenProfile]); err != nil {
+		t.Fatalf("confirmed %s journal after a declined profile: %v", writtenProfile, err)
+	}
+}

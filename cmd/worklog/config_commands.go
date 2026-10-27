@@ -211,9 +211,11 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, s
 	if answer != "y" && answer != "yes" {
 		fmt.Fprintln(application.stdout)
 		if refresh {
-			return errors.New("journal refresh not confirmed")
+			fmt.Fprintln(application.stdout, "Not updated. Run worklog day again when you're ready.")
+		} else {
+			fmt.Fprintln(application.stdout, "Not written. Run worklog day again when you're ready.")
 		}
-		return errors.New("journal write not confirmed")
+		return nil
 	}
 	if refresh {
 		err = journal.ReplaceAtomic(plan.destination, plan.existing, contents)

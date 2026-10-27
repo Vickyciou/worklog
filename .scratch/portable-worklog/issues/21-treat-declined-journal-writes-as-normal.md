@@ -4,16 +4,18 @@
 
 **Blocked by:** 08 — 分開處理同一天的多個 profiles；09 — Refresh 受管理的歷史日誌。
 
-**Status:** ready-for-agent
+**Status:** complete
 
 **Milestone:** M4 — 直覺的日常使用
 
-- [ ] 拒絕新日誌時印出 `Not written. Run worklog day again when you're ready.`；拒絕更新時印出對應的 `Not updated.` 訊息。兩者都不印 `worklog:` 錯誤前綴或 help 提示。
-- [ ] 所有 profiles 都處理完且沒有實際錯誤時 exit 0，包含全部被拒絕的情況。
-- [ ] 多個 active profiles 時，拒絕其中一個後繼續預覽與確認下一個 profile。
-- [ ] 寫入失敗、驗證失敗等真正的錯誤仍維持非零 exit status。
-- [ ] Acceptance tests 覆蓋單一 profile 拒絕、兩個 profiles 中拒絕第一個並寫入第二個，以及拒絕後 journal destination 不存在。
+- [x] 拒絕新日誌時印出 `Not written. Run worklog day again when you're ready.`；拒絕更新時印出對應的 `Not updated.` 訊息。兩者都不印 `worklog:` 錯誤前綴或 help 提示。
+- [x] 所有 profiles 都處理完且沒有實際錯誤時 exit 0，包含全部被拒絕的情況。
+- [x] 多個 active profiles 時，拒絕其中一個後繼續預覽與確認下一個 profile。
+- [x] 寫入失敗、驗證失敗等真正的錯誤仍維持非零 exit status。
+- [x] Acceptance tests 覆蓋單一 profile 拒絕、兩個 profiles 中拒絕第一個並寫入第二個，以及拒絕後 journal destination 不存在。
 
 ## Comments
 
 - 2026-10-27：目前回答 `n` 會回傳 `journal write not confirmed` 或 `journal refresh not confirmed` 錯誤並 exit 1。`runDay` 遇到第一個錯誤就 return，因此同一天第一個 profile 被拒絕時，後面的 profiles 不會被處理（依 `cmd/worklog/config_commands.go` 的迴圈推論）。
+- 2026-10-27：拒絕時 `runDayPlan` 印出 `Not written.` 或 `Not updated.` 並回傳 nil，`runDay` 因此繼續處理下一個 profile。新增的兩個 profiles 測試在修正前以 exit 1 失敗，修正後通過；既有的拒絕測試改為預期 exit 0 與新訊息。
+- 2026-10-27：`go test ./...`、`go vet ./...` 與 `git diff --check` 通過。

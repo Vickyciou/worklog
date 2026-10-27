@@ -99,7 +99,7 @@ journal destination that daily commands should use. A repository can belong to o
 one profile. Exact duplicate paths and overlapping parent or child mappings are
 rejected.
 
-## Generate or refresh a daily journal
+## Generate or update a daily journal
 
 After setup, daily use needs no profile flags:
 
@@ -134,10 +134,13 @@ The rendered Obsidian note retains the legacy Obsidian-compatible `date`, `type`
 technology names remain bounded and deduplicated. Taiwan Traditional Chinese headings
 and an explicit managed block include a DailyFacts source digest. A confirmed first write is
 installed atomically. Passing `YYYY-MM-DD` previews and generates that historical
-date when it does not exist. Existing notes are refused unless `--refresh` is
-explicit. Refresh validates exactly one managed block, displays its diff, preserves
-all bytes outside the block, rechecks the previewed file, and atomically replaces it
-only after confirmation.
+date when it does not exist. Running `day` again for a date that already has a
+journal updates it. When the collected facts match the managed block's source
+digest, `day` reports that the journal is up to date and does not call a summarizer.
+Otherwise it validates exactly one managed block, displays its diff, preserves all
+bytes outside the block, rechecks the previewed file, and atomically replaces it only
+after confirmation. `--refresh` regenerates an existing journal even when its facts
+are unchanged, which applies a changed language or daily summary setting.
 
 ## Inspect daily facts
 

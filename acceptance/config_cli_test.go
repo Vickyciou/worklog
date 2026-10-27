@@ -425,6 +425,7 @@ func TestSettingsUpdatesTheOnlyProfileWithoutMovingJournals(t *testing.T) {
 	result := environment.runWithInput(t, input, "settings")
 
 	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "run worklog day <date> --refresh to regenerate one")
 	assertContains(t, result.stdout, "Current settings for work:")
 	assertContains(t, result.stdout, "Daily summary:  Built-in (no AI or network)")
 	assertContains(t, result.stdout, "Existing journals will stay in their current folder")

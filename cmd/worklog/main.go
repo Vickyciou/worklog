@@ -273,10 +273,12 @@ Behavior:
 
     <journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md
 
-  Only an explicit y or yes writes the journal. A historical date can be generated
-  when its destination is absent. Existing journals are refused unless --refresh
-  is explicit. Refresh requires exactly one valid managed block, previews its diff,
-  preserves every byte outside it, and atomically replaces the file after confirmation.
+  Only an explicit y or yes writes the journal. Running day again for the same
+  date updates the existing journal: when the collected facts are unchanged, day
+  reports that the journal is up to date without calling a summarizer; otherwise
+  it previews the managed-block diff and asks before replacing it. An update
+  requires exactly one valid managed block, preserves every byte outside it,
+  and atomically replaces the file after confirmation.
 
   Profiles without registered repositories or author identities stop before any
   provider call or write and include the command needed to repair the mapping.
@@ -285,7 +287,8 @@ Next:
   Run worklog inspect <profile> first when you want to review the source facts.
 
 Options:
-  --refresh     Replace only an existing journal's managed block
+  --refresh     Regenerate an existing journal even when its facts are unchanged,
+                for example after changing the language or daily summary
   -h, --help    Show help for day
 `
 

@@ -253,7 +253,7 @@ func TestDayRechecksDestinationAfterPreviewAndPreservesExistingFile(t *testing.T
 			t.Fatalf("wait for day: %v", err)
 		}
 	}
-	if !strings.Contains(stderr.String(), "journal already exists") {
+	if !strings.Contains(stderr.String(), "journal was created after preview") {
 		t.Fatalf("stderr = %q, want existing-journal refusal", stderr.String())
 	}
 	contents, err := os.ReadFile(destination)
@@ -319,12 +319,11 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 		"capture", environment.repository, secondCommit,
 	))
 
-	withoutFlag := environment.runWithInput(t, "yes\n", "day", date)
-	assertFailedWith(t, withoutFlag, "journal already exists")
-	declined := environment.runWithInput(t, "no\n", "day", date, "--refresh")
+	declined := environment.runWithInput(t, "no\n", "day", date)
 	assertSucceeded(t, declined)
 	assertContains(t, declined.stdout, "Not updated. Run worklog day again when you're ready.")
-	assertContains(t, declined.stdout, "Journal refresh diff: "+destination)
+	assertContains(t, declined.stdout, "Journal changes: "+destination)
+	assertContains(t, declined.stdout, "Update this journal? [y/N]: ")
 	assertContains(t, declined.stdout, "--- existing managed block")
 	assertContains(t, declined.stdout, "+- Historical refreshed outcome")
 	afterDecline, err := os.ReadFile(destination)
@@ -332,9 +331,9 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 		t.Fatalf("declined refresh changed journal: error=%v", err)
 	}
 
-	refreshed := environment.runWithInput(t, "yes\n", "day", "--refresh", date)
+	refreshed := environment.runWithInput(t, "yes\n", "day", date)
 	assertSucceeded(t, refreshed)
-	assertContains(t, refreshed.stdout, "Refreshed journal "+destination+".")
+	assertContains(t, refreshed.stdout, "Updated journal "+destination+".")
 	contents, err := os.ReadFile(destination)
 	if err != nil {
 		t.Fatalf("read refreshed journal: %v", err)
@@ -373,10 +372,9 @@ func TestDayRefreshRefusesJournalWithoutValidManagedBoundaries(t *testing.T) {
 		t.Fatalf("write manual journal: %v", err)
 	}
 
-	result := environment.runWithInput(t, "yes\n", "day", date, "--refresh")
-	assertFailedWith(t, result, "exactly one valid managed block")
-	if strings.Contains(result.stdout, "Journal refresh diff:") {
-		t.Fatal("invalid journal reached refresh preview")
+	for _, arguments := range [][]string{{"day", date}, {"day", date, "--refresh"}} {
+		result := environment.runWithInput(t, "yes\n", arguments...)
+		assertFailedWith(t, result, "exactly one valid managed block")
 	}
 	contents, err := os.ReadFile(destination)
 	if err != nil || !bytes.Equal(contents, original) {
@@ -451,4 +449,135 @@ func TestDayRendersJournalLabelsInProfileLanguage(t *testing.T) {
 			t.Fatalf("en-US journal contains Chinese label %q:\n%s", chinese, text)
 		}
 	}
+}
+
+func TestDayUpdatesTodaysJournalWithoutRefreshFlag(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixtures are covered by portable summarizer tests on Windows")
+	}
+	environment := newEnvironment(t)
+	const email = "rerun-day@example.invalid"
+	counter := filepath.Join(environment.root, "summarizer-calls")
+	summarizerPath := filepath.Join(environment.root, "counting-summarizer")
+	script := "#!/bin/sh\nprintf 'x' >> \"$WORKLOG_TEST_CALLS\"\nexit 1\n"
+	if err := os.WriteFile(summarizerPath, []byte(script), 0o700); err != nil {
+		t.Fatalf("write counting summarizer: %v", err)
+	}
+	environment.environment = append(environment.environment, "WORKLOG_TEST_CALLS="+counter)
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", filepath.Join(environment.home, "journal"),
+		"--summarizer-command", summarizerPath,
+	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	now := time.Now().UTC().Truncate(time.Second)
+	date := now.Format(time.DateOnly)
+	shown := "~/journal/" + date[:4] + "/" + date[:7] + "/" + date + ".md"
+	destination := filepath.Join(environment.home, "journal", date[:4], date[:7], date+".md")
+	calls := func() int {
+		contents, err := os.ReadFile(counter)
+		if errors.Is(err, os.ErrNotExist) {
+			return 0
+		}
+		if err != nil {
+			t.Fatalf("read summarizer counter: %v", err)
+		}
+		return len(contents)
+	}
+	createCommitAt(t, environment, environment.repository, email,
+		now.Format(time.RFC3339), now.Format(time.RFC3339), "Morning change", "")
+
+	written := environment.runWithInput(t, "y\n", "day")
+	assertSucceeded(t, written)
+	assertContains(t, written.stdout, "Journal preview: "+shown)
+	assertContains(t, written.stdout, "Wrote journal "+shown+".")
+	if err := appendFile(destination, "manual note\n"); err != nil {
+		t.Fatalf("add manual note: %v", err)
+	}
+
+	current := environment.run(t, "day")
+	assertSucceeded(t, current)
+	assertContains(t, current.stdout, "work: journal for "+date+" is already up to date.")
+	if strings.Contains(current.stdout, "[y/N]") {
+		t.Fatalf("up-to-date journal asked for confirmation:\n%s", current.stdout)
+	}
+	if got := calls(); got != 1 {
+		t.Fatalf("summarizer calls after up-to-date run = %d, want 1", got)
+	}
+
+	later := now.Add(time.Minute)
+	createCommitAt(t, environment, environment.repository, email,
+		later.Format(time.RFC3339), later.Format(time.RFC3339), "Afternoon change", "")
+	updated := environment.runWithInput(t, "y\n", "day")
+	assertSucceeded(t, updated)
+	assertContains(t, updated.stdout, "Journal changes: "+shown)
+	assertContains(t, updated.stdout, "+- Afternoon change")
+	assertContains(t, updated.stdout, "Updated journal "+shown+".")
+	contents, err := os.ReadFile(destination)
+	if err != nil {
+		t.Fatalf("read updated journal: %v", err)
+	}
+	for _, expected := range []string{"Morning change", "Afternoon change", "manual note\n"} {
+		assertContains(t, string(contents), expected)
+	}
+
+	forced := environment.runWithInput(t, "n\n", "day", "--refresh")
+	assertSucceeded(t, forced)
+	assertContains(t, forced.stdout, "Journal changes: "+shown)
+	assertContains(t, forced.stdout, "Not updated.")
+	if got := calls(); got != 3 {
+		t.Fatalf("summarizer calls after forced refresh = %d, want 3", got)
+	}
+}
+
+func TestDayHandlesEachProfileJournalStateIndependently(t *testing.T) {
+	environment := newEnvironment(t)
+	personalRepository := filepath.Join(environment.root, "personal-repository")
+	initializeGitRepository(t, personalRepository, environment.environment)
+	commitTime := time.Now().UTC().AddDate(0, 0, -2).Truncate(time.Second)
+	date := commitTime.Format(time.DateOnly)
+	for _, profile := range []struct{ name, repository string }{
+		{name: "work", repository: environment.repository},
+		{name: "personal", repository: personalRepository},
+	} {
+		email := profile.name + "-state@example.invalid"
+		assertSucceeded(t, environment.run(t,
+			"profile", "add", profile.name,
+			"--timezone", "UTC",
+			"--language", "en",
+			"--journal-destination", filepath.Join(environment.root, profile.name+"-journal"),
+		))
+		assertSucceeded(t, environment.run(t, "author", "add", profile.name, email))
+		assertSucceeded(t, environment.run(t, "repo", "add", profile.name, profile.repository))
+		createCommitAt(t, environment, profile.repository, email,
+			commitTime.Format(time.RFC3339), commitTime.Format(time.RFC3339), profile.name+" change", "")
+	}
+	assertSucceeded(t, environment.runWithInput(t, "y\nn\n", "day", date))
+
+	result := environment.runWithInput(t, "y\n", "day", date)
+
+	assertSucceeded(t, result)
+	if strings.Count(result.stdout, "is already up to date.") != 1 || strings.Count(result.stdout, "Journal preview [") != 1 {
+		t.Fatalf("want one up-to-date profile and one new preview:\n%s", result.stdout)
+	}
+	for _, profile := range []string{"work", "personal"} {
+		if _, err := os.Stat(filepath.Join(environment.root, profile+"-journal", date[:4], date[:7], date+".md")); err != nil {
+			t.Fatalf("%s journal missing: %v", profile, err)
+		}
+	}
+}
+
+func appendFile(path, text string) error {
+	file, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0)
+	if err != nil {
+		return err
+	}
+	if _, err := file.WriteString(text); err != nil {
+		file.Close()
+		return err
+	}
+	return file.Close()
 }

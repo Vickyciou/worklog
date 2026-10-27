@@ -22,7 +22,7 @@ const (
 	ManagedEnd         = "<!-- worklog:managed:end -->"
 )
 
-var ErrExists = errors.New("journal already exists; refresh is required to replace it")
+var ErrExists = errors.New("journal was created after preview; run worklog day again to update it")
 
 var (
 	ErrInvalidManagedBlock = errors.New("journal does not contain exactly one valid managed block")
@@ -95,12 +95,29 @@ func LabelsFor(language string) Labels {
 	return englishLabels
 }
 
-func Render(profile config.Profile, facts dailyfacts.Document, summary dailysummary.Document) ([]byte, error) {
+func SourceDigest(facts dailyfacts.Document) (string, error) {
 	encodedFacts, err := dailyfacts.Encode(facts)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(encodedFacts)
+	return hex.EncodeToString(digest[:]), nil
+}
+
+func ManagedDigest(contents []byte) (string, error) {
+	start, _, err := managedBlockBounds(contents)
+	if err != nil {
+		return "", err
+	}
+	line, _, _ := bytes.Cut(contents[start:], []byte("\n"))
+	return strings.TrimSuffix(strings.TrimPrefix(strings.TrimSuffix(string(line), "\r"), ManagedStartPrefix), " -->"), nil
+}
+
+func Render(profile config.Profile, facts dailyfacts.Document, summary dailysummary.Document) ([]byte, error) {
+	digest, err := SourceDigest(facts)
 	if err != nil {
 		return nil, err
 	}
-	digest := sha256.Sum256(encodedFacts)
 	labels := LabelsFor(profile.Language)
 
 	var output bytes.Buffer
@@ -119,7 +136,7 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 	output.WriteString("tags: [工作日誌]\n")
 	output.WriteString("---\n\n")
 	output.WriteString(ManagedStartPrefix)
-	output.WriteString(hex.EncodeToString(digest[:]))
+	output.WriteString(digest)
 	output.WriteString(" -->\n")
 	output.WriteString("# ")
 	output.WriteString(labels.Title)
@@ -174,7 +191,7 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 }
 
 func WriteAtomic(path string, contents []byte) error {
-	if err := CheckAvailable(path); err != nil {
+	if err := checkAvailable(path); err != nil {
 		return err
 	}
 
@@ -337,7 +354,7 @@ func replaceAtomic(path string, expected, contents []byte, beforeReplace func() 
 	return nil
 }
 
-func CheckAvailable(path string) error {
+func checkAvailable(path string) error {
 	if _, err := os.Lstat(path); err == nil {
 		return ErrExists
 	} else if !errors.Is(err, os.ErrNotExist) {

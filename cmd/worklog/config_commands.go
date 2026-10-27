@@ -77,12 +77,20 @@ func (application cli) day(arguments []string) error {
 		if index > 0 {
 			fmt.Fprintln(application.stdout)
 		}
-		if err := application.runDayPlan(reader, plans[index], refresh, len(plans) > 1); err != nil {
+		if err := application.runDayPlan(reader, plans[index], len(plans) > 1); err != nil {
 			return err
 		}
 	}
 	return nil
 }
+
+type journalState int
+
+const (
+	journalMissing journalState = iota
+	journalCurrent
+	journalChanged
+)
 
 type dayPlan struct {
 	profile     config.Profile
@@ -90,6 +98,7 @@ type dayPlan struct {
 	facts       dailyfacts.Document
 	destination string
 	existing    []byte
+	state       journalState
 }
 
 func (application cli) planActiveProfiles(configuration config.Config, requestedDate string, refresh bool) ([]dayPlan, error) {
@@ -128,26 +137,50 @@ func (application cli) planActiveProfiles(configuration config.Config, requested
 		destinations[destination] = profile.Name
 
 		plan := dayPlan{profile: profile, date: date, facts: facts, destination: destination}
-		if refresh {
-			plan.existing, err = os.ReadFile(destination)
-			if errors.Is(err, os.ErrNotExist) {
-				return nil, fmt.Errorf("refresh journal %q: journal does not exist; omit --refresh to generate it", destination)
-			}
-			if err != nil {
-				return nil, fmt.Errorf("read journal %q for refresh: %w", destination, err)
-			}
-			if err := journal.ValidateManaged(plan.existing); err != nil {
-				return nil, fmt.Errorf("refuse journal refresh %q: %w", destination, err)
-			}
-		} else if err := journal.CheckAvailable(destination); err != nil {
-			return nil, fmt.Errorf("refuse journal destination %q: %w", destination, err)
+		plan.state, plan.existing, err = classifyJournal(destination, facts, refresh)
+		if err != nil {
+			return nil, err
 		}
 		plans = append(plans, plan)
 	}
 	return plans, nil
 }
 
-func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, showProfile bool) error {
+// classifyJournal compares the existing managed block's source digest with the
+// current facts. A forced refresh treats every existing journal as changed so
+// rendering-only settings such as language can still be applied.
+func classifyJournal(destination string, facts dailyfacts.Document, refresh bool) (journalState, []byte, error) {
+	existing, err := os.ReadFile(destination)
+	if errors.Is(err, os.ErrNotExist) {
+		if refresh {
+			return 0, nil, fmt.Errorf("refresh journal %q: journal does not exist; omit --refresh to generate it", destination)
+		}
+		return journalMissing, nil, nil
+	}
+	if err != nil {
+		return 0, nil, fmt.Errorf("read journal %q: %w", destination, err)
+	}
+	existingDigest, err := journal.ManagedDigest(existing)
+	if err != nil {
+		return 0, nil, fmt.Errorf("refuse to update journal %q: %w; restore its worklog markers or move it aside", destination, err)
+	}
+	digest, err := journal.SourceDigest(facts)
+	if err != nil {
+		return 0, nil, err
+	}
+	if digest == existingDigest && !refresh {
+		return journalCurrent, existing, nil
+	}
+	return journalChanged, existing, nil
+}
+
+func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, showProfile bool) error {
+	if plan.state == journalCurrent {
+		fmt.Fprintf(application.stdout, "✓ %s: journal for %s is already up to date. Run worklog day %s --refresh to regenerate it anyway.\n", plan.profile.Name, plan.date, plan.date)
+		return nil
+	}
+	update := plan.state == journalChanged
+	shown := displayPath(plan.destination)
 	summary := dailysummary.Fallback(plan.facts, journal.LabelsFor(plan.profile.Language).CompletedTopic)
 	if plan.profile.EffectiveSummaryMode() != config.SummaryBuiltIn {
 		if err := os.MkdirAll(application.paths.StateHome, 0o700); err != nil {
@@ -177,26 +210,26 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, s
 	}
 
 	prompt := "Write this journal? [y/N]: "
-	if refresh {
+	if update {
 		var difference []byte
 		contents, difference, err = journal.Refresh(plan.existing, contents)
 		if err != nil {
-			return fmt.Errorf("prepare journal refresh %q: %w", plan.destination, err)
+			return fmt.Errorf("prepare journal update %q: %w", plan.destination, err)
 		}
 		if showProfile {
-			fmt.Fprintf(application.stdout, "Journal refresh diff [%s]: %s\n\n", plan.profile.Name, plan.destination)
+			fmt.Fprintf(application.stdout, "Journal changes [%s]: %s\n\n", plan.profile.Name, shown)
 		} else {
-			fmt.Fprintf(application.stdout, "Journal refresh diff: %s\n\n", plan.destination)
+			fmt.Fprintf(application.stdout, "Journal changes: %s\n\n", shown)
 		}
 		if _, err := application.stdout.Write(difference); err != nil {
 			return err
 		}
-		prompt = "Refresh this journal? [y/N]: "
+		prompt = "Update this journal? [y/N]: "
 	} else {
 		if showProfile {
-			fmt.Fprintf(application.stdout, "Journal preview [%s]: %s\n\n", plan.profile.Name, plan.destination)
+			fmt.Fprintf(application.stdout, "Journal preview [%s]: %s\n\n", plan.profile.Name, shown)
 		} else {
-			fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", plan.destination)
+			fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", shown)
 		}
 		if _, err := application.stdout.Write(contents); err != nil {
 			return err
@@ -210,14 +243,14 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, s
 	answer = strings.ToLower(strings.TrimSpace(answer))
 	if answer != "y" && answer != "yes" {
 		fmt.Fprintln(application.stdout)
-		if refresh {
+		if update {
 			fmt.Fprintln(application.stdout, "Not updated. Run worklog day again when you're ready.")
 		} else {
 			fmt.Fprintln(application.stdout, "Not written. Run worklog day again when you're ready.")
 		}
 		return nil
 	}
-	if refresh {
+	if update {
 		err = journal.ReplaceAtomic(plan.destination, plan.existing, contents)
 	} else {
 		err = journal.WriteAtomic(plan.destination, contents)
@@ -227,11 +260,22 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, s
 		return fmt.Errorf("write journal %q: %w", plan.destination, err)
 	}
 	verb := "Wrote"
-	if refresh {
-		verb = "Refreshed"
+	if update {
+		verb = "Updated"
 	}
-	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, plan.destination)
+	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, shown)
 	return nil
+}
+
+func displayPath(path string) string {
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		return path
+	}
+	if relative, ok := strings.CutPrefix(path, filepath.Clean(home)+string(filepath.Separator)); ok {
+		return "~" + string(filepath.Separator) + relative
+	}
+	return path
 }
 
 func parseDayArguments(arguments []string) (string, bool, error) {
@@ -700,6 +744,9 @@ Ready:
 `, candidate.Name, candidate.Language, candidate.Timezone, candidate.JournalDestination, dailySummaryLabel(candidate.EffectiveSummaryMode()))
 	if candidate.JournalDestination != profile.JournalDestination {
 		fmt.Fprintln(application.stdout, "Existing journals will stay in their current folder; future output uses the new folder.")
+	}
+	if candidate.Language != profile.Language || candidate.EffectiveSummaryMode() != profile.EffectiveSummaryMode() {
+		fmt.Fprintln(application.stdout, "Existing journals keep their current text; run worklog day <date> --refresh to regenerate one.")
 	}
 	confirmed, err := application.confirm(reader, "Save these settings?")
 	if err != nil {

@@ -2,7 +2,7 @@
 
 **What to build:** 讓使用者可以從 versioned release 安裝單一 `worklog` executable，在沒有 Go toolchain 或特定 AI agent 的新環境完成 setup、capture 與 day workflow。
 
-**Blocked by:** 08 — 分開處理同一天的多個 profiles；09 — 安全 refresh 歷史日誌；10 — 診斷設定與隱私邊界；11 — 提供沒有 AI agent 時的 capture fallback；12 — 整合中央 gen-commit。
+**Blocked by:** 08 — 分開處理同一天的多個 profiles；09 — 安全 refresh 歷史日誌；10 — 診斷設定與隱私邊界；12 — 整合中央 gen-commit。
 
 **Status:** ready-for-agent
 

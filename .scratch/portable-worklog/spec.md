@@ -100,7 +100,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Make capture idempotent when the same event already exists. Reject a different event for the same commit unless a future explicit edit workflow is used.
 - Keep `gen-commit` in the separately Git-managed central skills collection. Its generic integration reads the live capture contract from CLI help and records each successful commit without embedding provider or profile logic.
 - Keep company-specific commit skills outside this repository. They may call the public capture contract when installed.
-- Provide an optional generic post-commit fallback that records metadata when no agent integration is active. It cannot invent decisions or rationale.
+- Commits without a captured event contribute their subject as the outcome. No post-commit fallback writes notes, because a hook note would block the richer event an agent captures after the commit.
 - Define summarization as a command adapter protocol. The core sends a redacted DailyFacts JSON document on stdin and accepts a DailySummary JSON document on stdout; a nonzero exit, timeout, empty result or invalid schema triggers deterministic fallback.
 - Keep provider credentials outside worklog configuration. Provider adapters may read environment variables or platform credential storage.
 - Make structured-only privacy the default. Summarizer input excludes hashes, raw commit bodies unless explicitly allowed, repository paths, author emails, raw diffs and source code.

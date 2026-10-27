@@ -9,10 +9,9 @@ import (
 )
 
 const (
-	Version             = 1
-	MaxFocusStatements  = 3
-	MaxTechnologies     = 10
-	completedTopicTitle = "工作成果"
+	Version            = 1
+	MaxFocusStatements = 3
+	MaxTechnologies    = 10
 )
 
 var (
@@ -64,7 +63,7 @@ type Decision struct {
 	Reason   *string `json:"reason,omitempty"`
 }
 
-func Fallback(facts dailyfacts.Document) Document {
+func Fallback(facts dailyfacts.Document, completedTopic string) Document {
 	summary := Document{
 		Version:      Version,
 		Focus:        []string{},
@@ -74,7 +73,7 @@ func Fallback(facts dailyfacts.Document) Document {
 		Technologies: []string{},
 	}
 
-	completed := CompletedTopic{Topic: completedTopicTitle, Items: []CompletedItem{}}
+	completed := CompletedTopic{Topic: completedTopic, Items: []CompletedItem{}}
 	seenFocus := make(map[string]struct{})
 	seenDecisions := make(map[string]struct{})
 	seenNextSteps := make(map[string]struct{})

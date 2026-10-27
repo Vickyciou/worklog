@@ -49,7 +49,8 @@ Behavior:
   and ~/Documents/worklog/<profile> are editable defaults. Worklog reads the
   author email from that repository and detects timezone and language from the
   environment or operating system. If a required value cannot be detected,
-  setup asks only for that value.
+  setup asks only for that value. Language sets the journal headings and the
+  language that Codex and Claude Code summaries use.
 
   Setup offers Built-in plus installed Codex and Claude Code CLIs. Built-in uses
   no AI or network; provider presets reuse their CLI's current session without
@@ -125,7 +126,8 @@ Usage:
 Behavior:
   A single configured profile is selected automatically. With multiple
   profiles, choose one from a numbered list or pass its name. Press Enter to
-  keep the current language, IANA timezone, or journal folder.
+  keep the current language, IANA timezone, or journal folder. Language sets
+  the journal headings and the language that Codex and Claude Code summaries use.
 
   Worklog validates the complete candidate before one final confirmation.
   Changing the journal folder affects future output only; existing journals
@@ -264,7 +266,8 @@ Behavior:
   empty, malformed, or invalid providers use the deterministic Built-in fallback.
   Codex and Claude Code are instructed to use the profile language for summary
   prose while preserving public technology names and identifiers. Built-in
-  preserves captured text and does not translate it.
+  preserves captured text and does not translate it. Journal headings use
+  Chinese for zh languages and English for every other language.
   Worklog then renders and previews the complete journal. The
   destination is:
 

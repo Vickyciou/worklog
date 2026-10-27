@@ -120,7 +120,10 @@ schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, e
 malformed, or invalid commands fall back deterministically without exposing provider
 stderr. Codex and Claude Code presets are instructed to write human-language summary
 fields in the profile language while preserving public technology names and identifiers.
-Built-in preserves the language of captured facts and does not translate them. The core
+Built-in preserves the language of captured facts and does not translate them. Journal
+headings follow the profile language: zh languages use Taiwan Traditional Chinese
+headings, and every other language uses English headings. Frontmatter tags stay
+`[工作日誌]` so existing Obsidian queries keep working. The core
 prints the complete Markdown preview before asking for confirmation.
 Only `y` or `yes` writes. The core chooses the destination as
 `<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`; configured providers never

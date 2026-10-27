@@ -4,18 +4,21 @@
 
 **Blocked by:** 06 — 產生不依賴 AI 的每日工作日誌；19 — 讓 AI 摘要遵守 profile language。
 
-**Status:** ready-for-agent
+**Status:** complete
 
 **Milestone:** M4 — 直覺的日常使用
 
-- [ ] 提供 `zh` 與 `en` 兩套固定文字。`zh-*` 使用目前的台灣繁體中文文字，`en-*` 使用英文文字，其他語言使用英文文字。
-- [ ] `zh-TW` profile 產生的日誌與目前輸出 byte-for-byte 相同，維持舊 Bash 與 Obsidian layout 的 parity。
-- [ ] Frontmatter 的 `type: worklog-daily` 與 `tags: [工作日誌]` 不隨語言改變，避免既有 Obsidian 查詢失效。
-- [ ] 改變 profile language 後更新既有日誌時，只替換 managed block 內的文字。
-- [ ] `settings` 與 `setup` 的說明提到 language 同時影響 AI 摘要與日誌標題。
-- [ ] Acceptance tests 覆蓋 `zh-TW` 輸出不變、`en-US` 產生英文標題，以及 frontmatter tags 不變。
+- [x] 提供 `zh` 與 `en` 兩套固定文字。`zh-*` 使用目前的台灣繁體中文文字，`en-*` 使用英文文字，其他語言使用英文文字。
+- [x] `zh-TW` profile 產生的日誌與目前輸出 byte-for-byte 相同，維持舊 Bash 與 Obsidian layout 的 parity。
+- [x] Frontmatter 的 `type: worklog-daily` 與 `tags: [工作日誌]` 不隨語言改變，避免既有 Obsidian 查詢失效。
+- [x] 改變 profile language 後更新既有日誌時，只替換 managed block 內的文字。
+- [x] `settings` 與 `setup` 的說明提到 language 同時影響 AI 摘要與日誌標題。
+- [x] Acceptance tests 覆蓋 `zh-TW` 輸出不變、`en-US` 產生英文標題，以及 frontmatter tags 不變。
 
 ## Comments
 
 - 2026-10-27：使用者決定標題跟著 profile language 變，終端機訊息維持英文。英文版文字待實作時定稿，示意稿使用 `Work Log`、`Highlights` 這類名稱。
 - 2026-10-27：Frontmatter tags 保持固定是本 issue 的預設決定，理由是 tags 用於 Obsidian 查詢，而不是給人閱讀。
+- 2026-10-27：`internal/journal` 新增 `Labels` 與 `LabelsFor`，以 language 的主要語言判斷 `zh` 或英文；Built-in 的完成事項 topic（`工作成果`／`Work`）也改由同一組 labels 提供。英文定稿為 `Work Log`、`Highlights`、`Completed`、`Work`、`Decisions`、`Next Steps`、`None`、`Approach: ` 與 ` (reason: …)`。
+- 2026-10-27：既有 `zh-TW` 全文比對測試未修改即通過，確認中文輸出 byte-for-byte 不變。新增 `en-US` acceptance test 驗證英文標題、frontmatter tags 不變且不含中文 labels。`go test ./...`、`go vet ./...` 與 `git diff --check` 通過。
+- 2026-10-27：Source digest 只涵蓋 DailyFacts，不含 language。Issue 22 若以 digest 判斷「已是最新」，改變 language 後既有日誌會被判斷為最新而不重新產生標題；需在 22 處理。

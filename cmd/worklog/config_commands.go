@@ -148,7 +148,7 @@ func (application cli) planActiveProfiles(configuration config.Config, requested
 }
 
 func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, showProfile bool) error {
-	summary := dailysummary.Fallback(plan.facts)
+	summary := dailysummary.Fallback(plan.facts, journal.LabelsFor(plan.profile.Language).CompletedTopic)
 	if plan.profile.EffectiveSummaryMode() != config.SummaryBuiltIn {
 		if err := os.MkdirAll(application.paths.StateHome, 0o700); err != nil {
 			fmt.Fprintln(application.stdout, "Summarizer unavailable (state directory unavailable); using Built-in.")

@@ -409,3 +409,46 @@ func readUntil(t *testing.T, reader *bufio.Reader, marker string) string {
 	}
 	return output.String()
 }
+
+func TestDayRendersJournalLabelsInProfileLanguage(t *testing.T) {
+	environment := newEnvironment(t)
+	const profileEmail = "english-labels@example.invalid"
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "en-US",
+		"--journal-destination", environment.journalDestination,
+	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", profileEmail))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	now := time.Now().UTC().Truncate(time.Second)
+	date := now.Format(time.DateOnly)
+	commit := createCommitAt(t, environment, environment.repository, profileEmail,
+		now.Format(time.RFC3339), now.Format(time.RFC3339), "label fixture", "")
+	event := `{"version":1,"outcome":"Ship retry","approach":"Bounded backoff","decisions":[{"decision":"Cap retries","reason":"Avoid storms"}]}`
+	assertSucceeded(t, environment.runWithInput(t, event, "capture", environment.repository, commit))
+
+	result := environment.runWithInput(t, "yes\n", "day")
+
+	assertSucceeded(t, result)
+	contents, err := os.ReadFile(filepath.Join(environment.journalDestination, date[:4], date[:7], date+".md"))
+	if err != nil {
+		t.Fatalf("read journal: %v", err)
+	}
+	text := string(contents)
+	for _, expected := range []string{
+		"tags: [工作日誌]\n",
+		"# Work Log - " + date + "\n",
+		"## Highlights\n\n- Ship retry\n",
+		"## Completed\n\n### Work\n\n- Ship retry\n  - Approach: Bounded backoff\n",
+		"## Decisions\n\n- Cap retries (reason: Avoid storms)\n",
+		"## Next Steps\n\n- None\n",
+	} {
+		assertContains(t, text, expected)
+	}
+	for _, chinese := range []string{"今日重點", "完成事項", "工作成果", "技術決策", "後續行動", "無"} {
+		if strings.Contains(text, chinese) {
+			t.Fatalf("en-US journal contains Chinese label %q:\n%s", chinese, text)
+		}
+	}
+}

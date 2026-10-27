@@ -45,12 +45,63 @@ func Path(profile config.Profile, date string) (string, error) {
 	), nil
 }
 
+// Labels holds the fixed journal text that worklog writes itself. Captured facts
+// and provider summaries are never translated.
+type Labels struct {
+	Title          string
+	Focus          string
+	Completed      string
+	CompletedTopic string
+	Decisions      string
+	NextSteps      string
+	None           string
+	Approach       string
+	ReasonOpen     string
+	ReasonClose    string
+}
+
+var (
+	chineseLabels = Labels{
+		Title:          "工作日誌",
+		Focus:          "今日重點",
+		Completed:      "完成事項",
+		CompletedTopic: "工作成果",
+		Decisions:      "技術決策",
+		NextSteps:      "後續行動",
+		None:           "無",
+		Approach:       "作法：",
+		ReasonOpen:     "（原因：",
+		ReasonClose:    "）",
+	}
+	englishLabels = Labels{
+		Title:          "Work Log",
+		Focus:          "Highlights",
+		Completed:      "Completed",
+		CompletedTopic: "Work",
+		Decisions:      "Decisions",
+		NextSteps:      "Next Steps",
+		None:           "None",
+		Approach:       "Approach: ",
+		ReasonOpen:     " (reason: ",
+		ReasonClose:    ")",
+	}
+)
+
+func LabelsFor(language string) Labels {
+	primary, _, _ := strings.Cut(strings.ToLower(strings.TrimSpace(language)), "-")
+	if primary == "zh" {
+		return chineseLabels
+	}
+	return englishLabels
+}
+
 func Render(profile config.Profile, facts dailyfacts.Document, summary dailysummary.Document) ([]byte, error) {
 	encodedFacts, err := dailyfacts.Encode(facts)
 	if err != nil {
 		return nil, err
 	}
 	digest := sha256.Sum256(encodedFacts)
+	labels := LabelsFor(profile.Language)
 
 	var output bytes.Buffer
 	output.WriteString("---\n")
@@ -70,14 +121,16 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 	output.WriteString(ManagedStartPrefix)
 	output.WriteString(hex.EncodeToString(digest[:]))
 	output.WriteString(" -->\n")
-	output.WriteString("# 工作日誌 - ")
+	output.WriteString("# ")
+	output.WriteString(labels.Title)
+	output.WriteString(" - ")
 	output.WriteString(facts.Date)
 	output.WriteString("\n\n")
 
-	writeListSection(&output, "今日重點", summary.Focus)
-	output.WriteString("## 完成事項\n\n")
+	writeListSection(&output, labels.Focus, labels.None, summary.Focus)
+	output.WriteString("## " + labels.Completed + "\n\n")
 	if len(summary.Completed) == 0 {
-		output.WriteString("- 無\n\n")
+		output.WriteString("- " + labels.None + "\n\n")
 	} else {
 		for _, topic := range summary.Completed {
 			output.WriteString("### ")
@@ -88,7 +141,7 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 				output.WriteString(markdownText(item.Outcome))
 				output.WriteByte('\n')
 				if item.Approach != nil {
-					output.WriteString("  - 作法：")
+					output.WriteString("  - " + labels.Approach)
 					output.WriteString(markdownText(*item.Approach))
 					output.WriteByte('\n')
 				}
@@ -97,24 +150,24 @@ func Render(profile config.Profile, facts dailyfacts.Document, summary dailysumm
 		}
 	}
 
-	output.WriteString("## 技術決策\n\n")
+	output.WriteString("## " + labels.Decisions + "\n\n")
 	if len(summary.Decisions) == 0 {
-		output.WriteString("- 無\n\n")
+		output.WriteString("- " + labels.None + "\n\n")
 	} else {
 		for _, decision := range summary.Decisions {
 			output.WriteString("- ")
 			output.WriteString(markdownText(decision.Decision))
 			if decision.Reason != nil {
-				output.WriteString("（原因：")
+				output.WriteString(labels.ReasonOpen)
 				output.WriteString(markdownText(*decision.Reason))
-				output.WriteString("）")
+				output.WriteString(labels.ReasonClose)
 			}
 			output.WriteByte('\n')
 		}
 		output.WriteByte('\n')
 	}
 
-	writeListSection(&output, "後續行動", summary.NextSteps)
+	writeListSection(&output, labels.NextSteps, labels.None, summary.NextSteps)
 	output.WriteString(ManagedEnd)
 	output.WriteByte('\n')
 	return output.Bytes(), nil
@@ -354,12 +407,12 @@ func writeDiffLines(output *bytes.Buffer, prefix byte, contents []byte) {
 	}
 }
 
-func writeListSection(output *bytes.Buffer, heading string, values []string) {
+func writeListSection(output *bytes.Buffer, heading, none string, values []string) {
 	output.WriteString("## ")
 	output.WriteString(heading)
 	output.WriteString("\n\n")
 	if len(values) == 0 {
-		output.WriteString("- 無\n\n")
+		output.WriteString("- " + none + "\n\n")
 		return
 	}
 	for _, value := range values {

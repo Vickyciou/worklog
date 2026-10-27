@@ -18,6 +18,7 @@
 - [ ] 保留 `--refresh`，意義維持「只更新既有日誌」；日誌不存在時照舊報錯。root help 與 `day --help` 不再把它列為必要步驟。
 - [ ] 保留預覽後檔案被改動時拒絕安裝的 stale-preview 保護。
 - [ ] 成功訊息使用 `~` 縮寫家目錄路徑。
+- [ ] 改變 profile language 後，既有日誌不得被判斷為「已是最新」，以便標題更新為新語言。可行做法是讓 digest 涵蓋影響 render 的 profile 設定（至少 language）。
 - [ ] Acceptance tests 覆蓋：同日新增 commit 後更新、沒有新 commit 時顯示已是最新且 fake summarizer 未被呼叫、兩個 profiles 一個建立一個更新、無效 managed block 被拒絕，以及 `--refresh` 的既有行為。
 
 ## Comments

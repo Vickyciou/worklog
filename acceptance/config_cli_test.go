@@ -514,6 +514,24 @@ func TestProfileSetUpdatesOnlyTheNamedProfile(t *testing.T) {
 	}
 }
 
+func TestProfileAddExpandsHomeInJournalDestination(t *testing.T) {
+	environment := newEnvironment(t)
+
+	result := environment.run(t, "profile", "add", "personal",
+		"--timezone", "UTC",
+		"--language", "zh-TW",
+		"--journal-destination", "~/journals/personal",
+	)
+
+	assertSucceeded(t, result)
+	show := environment.run(t, "profile", "show", "personal")
+	assertSucceeded(t, show)
+	assertContains(t, show.stdout, `"journal_destination": "`+filepath.Join(environment.home, "journals", "personal")+`"`)
+	if _, err := os.Stat(filepath.Join(environment.repository, "~")); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("profile add created a literal ~ directory: %v", err)
+	}
+}
+
 func TestProfileSetRejectsMissingOrInvalidUpdatesWithoutSaving(t *testing.T) {
 	environment := newEnvironment(t)
 	assertSucceeded(t, environment.run(t,

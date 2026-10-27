@@ -1052,7 +1052,11 @@ func (application cli) addProfileAdvanced(arguments []string) error {
 	if *timezone == "" || *language == "" || *destination == "" {
 		return errors.New("timezone, language, and journal destination are required")
 	}
-	profile, err := config.NewProfile(name, *timezone, *language, *destination, *summarizer)
+	expanded, err := expandUserPath(*destination)
+	if err != nil {
+		return err
+	}
+	profile, err := config.NewProfile(name, *timezone, *language, expanded, *summarizer)
 	if err != nil {
 		return err
 	}

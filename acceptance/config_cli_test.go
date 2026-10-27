@@ -28,6 +28,7 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		"",
 		environment.journalDestination,
 		"",
+		"y",
 		"",
 	}, "\n")
 
@@ -124,7 +125,7 @@ func TestSetupSupportsPersonalAndCustomProfiles(t *testing.T) {
 			})
 			assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
 			input := append([]string{}, test.inputLines...)
-			input = append(input, "", environment.journalDestination, "", "")
+			input = append(input, "", environment.journalDestination, "", "y", "")
 
 			result := environment.runWithInput(t, strings.Join(input, "\n"), "setup")
 
@@ -149,7 +150,7 @@ func TestSetupAcceptsRepositoryAndJournalDefaults(t *testing.T) {
 	if err := os.MkdirAll(nestedDirectory, 0o700); err != nil {
 		t.Fatalf("create nested working directory: %v", err)
 	}
-	input := strings.Join([]string{"", "", "", "", ""}, "\n")
+	input := strings.Join([]string{"", "", "", "", "y", ""}, "\n")
 
 	result := environment.runWithInputAt(t, nestedDirectory, input, "setup")
 
@@ -177,7 +178,7 @@ func TestSetupExpandsHomePaths(t *testing.T) {
 	if result := runCommand(t, git); result.exitCode != 0 {
 		t.Fatalf("configure alternate repository: %s", result.stderr)
 	}
-	input := strings.Join([]string{"2", "~/other-repository", "~/journals/personal", "", ""}, "\n")
+	input := strings.Join([]string{"2", "~/other-repository", "~/journals/personal", "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "setup")
 
@@ -210,6 +211,7 @@ func TestSetupPromptsOnlyWhenGitAuthorCannotBeDetected(t *testing.T) {
 		"fallback@example.invalid",
 		environment.journalDestination,
 		"",
+		"y",
 		"",
 	}, "\n")
 
@@ -235,6 +237,8 @@ func TestSetupPromptsForUndetectableTimezoneAndLanguage(t *testing.T) {
 		"Asia/Taipei",
 		"en_US",
 		environment.journalDestination,
+		"",
+		"y",
 		"",
 	}, "\n")
 
@@ -293,7 +297,7 @@ func TestGuidedProfileAddCreatesProfileAuthorAndRepository(t *testing.T) {
 		"--journal-destination", filepath.Join(environment.root, "work-journal"),
 	))
 	personalJournal := filepath.Join(environment.root, "personal-journal")
-	input := strings.Join([]string{"", "", personalJournal, "", ""}, "\n")
+	input := strings.Join([]string{"", "", personalJournal, "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "profile", "add")
 
@@ -373,7 +377,7 @@ func TestGuidedProfileAddRejectsRepositoryConflictWithoutSideEffects(t *testing.
 		"LANG":        "en_US.UTF-8",
 	})
 	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.invalid"))
-	setupInput := strings.Join([]string{"1", "", filepath.Join(environment.root, "work-journal"), "", ""}, "\n")
+	setupInput := strings.Join([]string{"1", "", filepath.Join(environment.root, "work-journal"), "", "y", ""}, "\n")
 	assertSucceeded(t, environment.runWithInput(t, setupInput, "setup"))
 	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
 	before, err := os.ReadFile(configurationPath)
@@ -381,7 +385,7 @@ func TestGuidedProfileAddRejectsRepositoryConflictWithoutSideEffects(t *testing.
 		t.Fatalf("read configuration before conflicting add: %v", err)
 	}
 	journal := filepath.Join(environment.root, "conflicting-personal-journal")
-	input := strings.Join([]string{"", journal, "", ""}, "\n")
+	input := strings.Join([]string{"", journal, "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "profile", "add", "personal")
 
@@ -416,7 +420,7 @@ func TestSettingsUpdatesTheOnlyProfileWithoutMovingJournals(t *testing.T) {
 		"--journal-destination", oldJournal,
 	))
 	newJournal := filepath.Join(environment.home, "journals", "work")
-	input := strings.Join([]string{"en_US.UTF-8", "Asia/Taipei", "~/journals/work", "", ""}, "\n")
+	input := strings.Join([]string{"en_US.UTF-8", "Asia/Taipei", "~/journals/work", "", "y", ""}, "\n")
 
 	result := environment.runWithInput(t, input, "settings")
 
@@ -766,5 +770,71 @@ func assertFailedWith(t *testing.T, result processResult, expectedSubstrings ...
 	}
 	for _, expected := range expectedSubstrings {
 		assertContains(t, result.stderr, expected)
+	}
+}
+
+func TestGuidedPromptsCancelWhenInputCloses(t *testing.T) {
+	environment := newEnvironment(t)
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"TZ":          "UTC",
+		"LC_ALL":      "",
+		"LC_MESSAGES": "",
+		"LANG":        "en_US.UTF-8",
+	})
+	assertSucceeded(t, environment.git(t, "config", "user.email", "developer@example.com"))
+	configurationPath := filepath.Join(environment.configRoot, "worklog", "config.json")
+
+	setup := environment.runWithInput(t, "1\n", "setup")
+	assertInputClosedCancellation(t, setup)
+	if _, err := os.Stat(configurationPath); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("setup with closed input created configuration: %v", err)
+	}
+
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "en-US",
+		"--journal-destination", filepath.Join(environment.root, "work-journal"),
+	))
+	before, err := os.ReadFile(configurationPath)
+	if err != nil {
+		t.Fatalf("read configuration: %v", err)
+	}
+	for _, arguments := range [][]string{{"settings"}, {"profile", "add", "personal"}} {
+		result := environment.run(t, arguments...)
+		assertInputClosedCancellation(t, result)
+		after, err := os.ReadFile(configurationPath)
+		if err != nil {
+			t.Fatalf("read configuration after %v: %v", arguments, err)
+		}
+		if string(after) != string(before) {
+			t.Fatalf("%v with closed input changed configuration", arguments)
+		}
+	}
+}
+
+func TestGuidedPromptAcceptsFinalAnswerWithoutNewline(t *testing.T) {
+	environment := newEnvironment(t)
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "UTC",
+		"--language", "en-US",
+		"--journal-destination", filepath.Join(environment.root, "work-journal"),
+	))
+
+	result := environment.runWithInput(t, "zh-TW\n\n\n\ny", "settings")
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, `Updated profile "work".`)
+}
+
+func assertInputClosedCancellation(t *testing.T, result processResult) {
+	t.Helper()
+	if result.exitCode == 0 {
+		t.Fatalf("exit code = 0, want failure; stdout:\n%s", result.stdout)
+	}
+	assertContains(t, result.stderr, "no answer received (input closed); nothing was saved")
+	if strings.Contains(result.stdout, "Created profile") || strings.Contains(result.stdout, "Updated profile") || strings.Contains(result.stdout, "Added profile") {
+		t.Fatalf("closed input reported a saved profile:\n%s", result.stdout)
 	}
 }

@@ -36,6 +36,7 @@ func TestDayPreviewsAndWritesDeterministicOfflineJournal(t *testing.T) {
 		"",
 		environment.journalDestination,
 		"",
+		"y",
 		"",
 	}, "\n")
 	assertSucceeded(t, environment.runWithInput(t, setupInput, "setup"))

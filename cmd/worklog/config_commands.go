@@ -542,9 +542,9 @@ func (application cli) prompt(reader *bufio.Reader, label, defaultValue string, 
 	} else {
 		fmt.Fprintf(application.stdout, "%s [%s]: ", label, defaultValue)
 	}
-	value, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return "", fmt.Errorf("read %s: %w", strings.ToLower(label), err)
+	value, err := readAnswer(reader)
+	if err != nil {
+		return "", err
 	}
 	value = strings.TrimSpace(value)
 	if value == "" {
@@ -556,11 +556,29 @@ func (application cli) prompt(reader *bufio.Reader, label, defaultValue string, 
 	return value, nil
 }
 
+var errInputClosed = errors.New("no answer received (input closed); nothing was saved. Use the flag form shown in --help for scripts")
+
+// readAnswer treats input that closes before any answer as cancellation, so an
+// unattended run never accepts defaults on the user's behalf.
+func readAnswer(reader *bufio.Reader) (string, error) {
+	value, err := reader.ReadString('\n')
+	if errors.Is(err, io.EOF) {
+		if value == "" {
+			return "", errInputClosed
+		}
+		return value, nil
+	}
+	if err != nil {
+		return "", fmt.Errorf("read answer: %w", err)
+	}
+	return value, nil
+}
+
 func (application cli) confirm(reader *bufio.Reader, label string) (bool, error) {
 	fmt.Fprintf(application.stdout, "%s [Y/n]: ", label)
-	value, err := reader.ReadString('\n')
-	if err != nil && !errors.Is(err, io.EOF) {
-		return false, fmt.Errorf("read confirmation: %w", err)
+	value, err := readAnswer(reader)
+	if err != nil {
+		return false, err
 	}
 	switch strings.ToLower(strings.TrimSpace(value)) {
 	case "", "y", "yes":

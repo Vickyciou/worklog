@@ -75,6 +75,9 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 55. As a user who commits again later in the day, I want `worklog day` to show and apply only the changes to today's journal, so that rerunning it never requires a different command.
 56. As a user, I want `worklog status` to show each profile's activity and journal state for today, so that I know whether anything is left to do.
 57. As a user with a non-Chinese profile language, I want journal headings in that language, so that the whole journal reads consistently.
+58. As a user, I want `inspect` and `repo add` to infer the profile when only one fits, so that I do not need to remember profile names.
+59. As a user setting up worklog, I want to be asked for the journal language, so that headings and summaries use the language I expect.
+60. As a user reading help or my profile settings, I want plain language first and technical contracts on request, so that I can learn the tool without knowing its internals.
 
 ## Implementation Decisions
 
@@ -153,4 +156,4 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - The central skills repository remains the distribution source for `gen-commit` across agents through symlinks. The worklog repository owns only the CLI and the generic capture contract.
 - The repository should begin private. Public release can be reconsidered after tracked history and fixtures are confirmed free of proprietary identifiers.
 - The preferred end-user flow is: install once, run interactive setup once, commit normally, then run `worklog day` at the end of the day.
-- A 2026-10-27 CLI usability review proposed further follow-ups that are not yet ticketed: a one-line summary and `~`-abbreviated paths in `day` output, plain-language help with technical contracts moved behind a details option, an explicit language prompt in setup, root help grouped by frequency of use, optional profile arguments for `inspect` and `repo add [path] [--profile name]` with no legacy positional form, typo suggestions, and human-readable `profile show` output with `--json`.
+- A 2026-10-27 CLI usability review proposed follow-ups now tracked in M5 (issues 26 to 32). The user declined typo suggestions for unknown commands and options.

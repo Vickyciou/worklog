@@ -69,3 +69,20 @@ M3 預定在 M2 完成後開始。Ticket 13 也需要 11 與 M1 的 12 完成。
 **Status:** complete（2026-10-27）
 
 M4 不依賴 M3。使用者於 2026-10-27 決定先完成 M4 再進行 M3。M4 完成條件：20、21、22、23、24、25 的 acceptance criteria 全部通過。
+
+## M5 — 更順手的設定與說明
+
+**Outcome:** 使用者不必記得 profile 名稱或內部術語。`day` 先用一行說明在處理什麼，`profile show` 一眼看懂，setup 明確詢問語言，help 依使用頻率分組並用白話說明。
+
+**Tickets:** 26、27、28、29、30、31、32
+
+**Assignment waves:**
+
+1. 26 — `profile add` 展開日誌路徑中的 `~`；27 — `worklog day` 先用一行說明每個 profile；28 — `profile show` 預設顯示易讀格式；29 — Setup 明確詢問日誌語言
+2. 30 — `inspect` 與 `repo add` 自動判斷 profile
+3. 31 — Root help 依使用頻率分組
+4. 32 — 指令說明改用白話，技術細節移到 `--details`
+
+**Status:** in progress
+
+M5 不依賴 M3。使用者於 2026-10-27 決定接著 M4 進行 M5，並排除打錯字提示的建議。M5 完成條件：26 至 32 的 acceptance criteria 全部通過。

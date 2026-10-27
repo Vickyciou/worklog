@@ -12,6 +12,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"text/tabwriter"
 	"time"
 
 	"github.com/Vickyciou/worklog/internal/config"
@@ -1107,18 +1108,71 @@ func (application cli) listProfiles(arguments []string) error {
 }
 
 func (application cli) showProfile(arguments []string) error {
-	if len(arguments) != 1 {
-		return errors.New("usage: worklog profile show <name>")
+	name, asJSON := "", false
+	for _, argument := range arguments {
+		switch {
+		case argument == "--json" && !asJSON:
+			asJSON = true
+		case !strings.HasPrefix(argument, "-") && name == "":
+			name = argument
+		default:
+			return errors.New("usage: worklog profile show <name> [--json]")
+		}
+	}
+	if name == "" {
+		return errors.New("usage: worklog profile show <name> [--json]")
 	}
 	configuration, err := config.Load(application.paths)
 	if err != nil {
 		return err
 	}
-	profile, found := configuration.Profile(arguments[0])
+	profile, found := configuration.Profile(name)
 	if !found {
-		return fmt.Errorf("profile %q does not exist", arguments[0])
+		return fmt.Errorf("profile %q does not exist", name)
 	}
-	return writeJSON(application.stdout, profile)
+	if asJSON {
+		return writeJSON(application.stdout, profile)
+	}
+
+	repositories := make([]string, len(profile.Repositories))
+	for index, repository := range profile.Repositories {
+		repositories[index] = displayPath(repository)
+	}
+	fmt.Fprintln(application.stdout, profile.Name)
+	table := tabwriter.NewWriter(application.stdout, 0, 0, 2, ' ', 0)
+	type row struct {
+		label  string
+		values []string
+	}
+	rows := []row{
+		{"Language", []string{profile.Language}},
+		{"Timezone", []string{profile.Timezone}},
+		{"Journal folder", []string{displayPath(profile.JournalDestination)}},
+		{"Daily summary", []string{dailySummaryLabel(profile.EffectiveSummaryMode())}},
+		{"Authors", profile.Authors},
+		{"Repositories", repositories},
+	}
+	// Denied literals are the values the user wants hidden, so only their count is shown.
+	if len(profile.DeniedLiterals) > 0 {
+		rows = append(rows, row{"Denied literals", []string{fmt.Sprintf("%d hidden", len(profile.DeniedLiterals))}})
+	}
+	for _, setting := range rows {
+		if len(setting.values) == 0 {
+			setting.values = []string{"none"}
+		}
+		for index, value := range setting.values {
+			label := setting.label
+			if index > 0 {
+				label = ""
+			}
+			fmt.Fprintf(table, "  %s\t%s\n", label, value)
+		}
+	}
+	if err := table.Flush(); err != nil {
+		return err
+	}
+	fmt.Fprintf(application.stdout, "\nChange these with worklog settings %s.\n", profile.Name)
+	return nil
 }
 
 func (application cli) validateProfiles(arguments []string) error {

@@ -38,14 +38,14 @@ func TestSetupAndSettingsDiscoverPresetsWithoutCredentialProbes(t *testing.T) {
 	if _, err := os.Stat(invocationLog); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("setup probed provider credentials or invoked a provider: %v", err)
 	}
-	show := environment.run(t, "profile", "show", "work")
+	show := environment.run(t, "profile", "show", "work", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"summary_mode": "codex"`)
 
 	settingsInput := strings.Join([]string{"", "", "", "3", "", ""}, "\n")
 	settings := environment.runWithInput(t, settingsInput, "settings")
 	assertSucceeded(t, settings)
-	show = environment.run(t, "profile", "show", "work")
+	show = environment.run(t, "profile", "show", "work", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"summary_mode": "claude-code"`)
 	if _, err := os.Stat(invocationLog); !errors.Is(err, os.ErrNotExist) {

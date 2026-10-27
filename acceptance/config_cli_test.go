@@ -81,7 +81,7 @@ func TestInteractiveSetupCreatesIsolatedConfiguration(t *testing.T) {
 		}
 	}
 
-	show := environment.run(t, "profile", "show", "work")
+	show := environment.run(t, "profile", "show", "work", "--json")
 	if show.exitCode != 0 {
 		t.Fatalf("show profile: exit code = %d; stderr:\n%s", show.exitCode, show.stderr)
 	}
@@ -131,7 +131,7 @@ func TestSetupSupportsPersonalAndCustomProfiles(t *testing.T) {
 
 			assertSucceeded(t, result)
 			assertContains(t, result.stdout, `Created profile "`+test.profile+`".`)
-			show := environment.run(t, "profile", "show", test.profile)
+			show := environment.run(t, "profile", "show", test.profile, "--json")
 			assertSucceeded(t, show)
 		})
 	}
@@ -158,7 +158,7 @@ func TestSetupAcceptsRepositoryAndJournalDefaults(t *testing.T) {
 	expectedJournal := filepath.Join(environment.home, "Documents", "worklog", "work")
 	assertContains(t, result.stdout, "Repository ["+canonicalTestPath(t, environment.repository)+"]:")
 	assertContains(t, result.stdout, "Journal folder ["+expectedJournal+"]:")
-	show := environment.run(t, "profile", "show", "work")
+	show := environment.run(t, "profile", "show", "work", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"journal_destination": "`+expectedJournal+`"`)
 }
@@ -184,7 +184,7 @@ func TestSetupExpandsHomePaths(t *testing.T) {
 
 	assertSucceeded(t, result)
 	assertContains(t, result.stdout, "Author:         other@example.invalid")
-	show := environment.run(t, "profile", "show", "personal")
+	show := environment.run(t, "profile", "show", "personal", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"journal_destination": "`+filepath.Join(environment.home, "journals", "personal")+`"`)
 	repositories := environment.run(t, "repo", "list", "personal")
@@ -310,7 +310,7 @@ func TestGuidedProfileAddCreatesProfileAuthorAndRepository(t *testing.T) {
 	if strings.Count(result.stdout, "Add this profile?") != 1 {
 		t.Fatalf("guided add confirmation count is not one:\n%s", result.stdout)
 	}
-	show := environment.run(t, "profile", "show", "personal")
+	show := environment.run(t, "profile", "show", "personal", "--json")
 	assertSucceeded(t, show)
 	for _, expected := range []string{
 		`"personal@example.invalid"`,
@@ -432,7 +432,7 @@ func TestSettingsUpdatesTheOnlyProfileWithoutMovingJournals(t *testing.T) {
 	if strings.Count(result.stdout, "Save these settings?") != 1 {
 		t.Fatalf("settings confirmation count is not one:\n%s", result.stdout)
 	}
-	show := environment.run(t, "profile", "show", "work")
+	show := environment.run(t, "profile", "show", "work", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"language": "en-US"`)
 	assertContains(t, show.stdout, `"timezone": "Asia/Taipei"`)
@@ -500,17 +500,55 @@ func TestProfileSetUpdatesOnlyTheNamedProfile(t *testing.T) {
 	)
 
 	assertSucceeded(t, result)
-	work := environment.run(t, "profile", "show", "work")
+	work := environment.run(t, "profile", "show", "work", "--json")
 	assertSucceeded(t, work)
 	assertContains(t, work.stdout, `"language": "en-US"`)
 	assertContains(t, work.stdout, `"timezone": "Asia/Taipei"`)
 	assertContains(t, work.stdout, `"journal_destination": "`+newJournal+`"`)
-	personal := environment.run(t, "profile", "show", "personal")
+	personal := environment.run(t, "profile", "show", "personal", "--json")
 	assertSucceeded(t, personal)
 	assertContains(t, personal.stdout, `"language": "zh-TW"`)
 	assertContains(t, personal.stdout, `"timezone": "UTC"`)
 	if _, err := os.Stat(newJournal); !errors.Is(err, os.ErrNotExist) {
 		t.Fatalf("profile set unexpectedly created new journal directory: %v", err)
+	}
+}
+
+func TestProfileShowPrintsReadableSettingsWithoutDeniedLiterals(t *testing.T) {
+	environment := newEnvironment(t)
+	assertSucceeded(t, environment.run(t, "profile", "add", "work",
+		"--timezone", "Asia/Taipei",
+		"--language", "zh-TW",
+		"--journal-destination", "~/journals/work",
+		"--deny-literal", "secret-codename",
+		"--deny-literal", "internal-host",
+	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", "developer@example.invalid"))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	repository, err := filepath.EvalSymlinks(environment.repository)
+	if err != nil {
+		t.Fatalf("resolve repository: %v", err)
+	}
+
+	result := environment.run(t, "profile", "show", "work")
+
+	assertSucceeded(t, result)
+	want := "work\n" +
+		"  Language         zh-TW\n" +
+		"  Timezone         Asia/Taipei\n" +
+		"  Journal folder   ~/journals/work\n" +
+		"  Daily summary    Built-in (no AI or network)\n" +
+		"  Authors          developer@example.invalid\n" +
+		"  Repositories     " + repository + "\n" +
+		"  Denied literals  2 hidden\n" +
+		"\nChange these with worklog settings work.\n"
+	if result.stdout != want {
+		t.Fatalf("profile show =\n%s\nwant\n%s", result.stdout, want)
+	}
+	for _, literal := range []string{"secret-codename", "internal-host"} {
+		if strings.Contains(result.stdout, literal) {
+			t.Fatalf("profile show printed denied literal %q", literal)
+		}
 	}
 }
 
@@ -524,7 +562,7 @@ func TestProfileAddExpandsHomeInJournalDestination(t *testing.T) {
 	)
 
 	assertSucceeded(t, result)
-	show := environment.run(t, "profile", "show", "personal")
+	show := environment.run(t, "profile", "show", "personal", "--json")
 	assertSucceeded(t, show)
 	assertContains(t, show.stdout, `"journal_destination": "`+filepath.Join(environment.home, "journals", "personal")+`"`)
 	if _, err := os.Stat(filepath.Join(environment.repository, "~")); !errors.Is(err, os.ErrNotExist) {

@@ -85,7 +85,7 @@ Commands:
   add         Add another profile with guided prompts
   set         Update profile settings with flags
   list        List configured profile names
-  show        Print one profile as JSON
+  show        Show one profile's settings; add --json for scripts
   validate    Validate one profile or all profiles
 
 Examples:

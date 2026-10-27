@@ -396,32 +396,87 @@ func managedBlockBounds(contents []byte) (int, int, error) {
 	return start, end + len(endMarker), nil
 }
 
+const diffContext = 2
+
+type diffLine struct {
+	prefix string
+	text   string
+}
+
+// managedDiff compares the lines between the managed markers so the changing
+// source digest never appears as a change.
 func managedDiff(existing, refreshed []byte) []byte {
-	var output bytes.Buffer
-	output.WriteString("--- existing managed block\n")
-	output.WriteString("+++ refreshed managed block\n")
-	output.WriteString("@@\n")
-	if bytes.Equal(existing, refreshed) {
-		output.WriteString(" (no managed changes)\n")
-		return output.Bytes()
+	lines := lineDiff(managedBody(existing), managedBody(refreshed))
+	show := make([]bool, len(lines))
+	for index, line := range lines {
+		if line.prefix == "  " {
+			continue
+		}
+		for near := max(0, index-diffContext); near <= min(len(lines)-1, index+diffContext); near++ {
+			show[near] = true
+		}
 	}
-	writeDiffLines(&output, '-', existing)
-	writeDiffLines(&output, '+', refreshed)
+
+	var output bytes.Buffer
+	skipped := false
+	for index, line := range lines {
+		if !show[index] {
+			skipped = true
+			continue
+		}
+		if skipped {
+			output.WriteString("  ...\n")
+			skipped = false
+		}
+		output.WriteString(strings.TrimRight(line.prefix+line.text, " "))
+		output.WriteByte('\n')
+	}
+	if output.Len() == 0 {
+		return []byte("  (no visible changes)\n")
+	}
+	if skipped {
+		output.WriteString("  ...\n")
+	}
 	return output.Bytes()
 }
 
-func writeDiffLines(output *bytes.Buffer, prefix byte, contents []byte) {
-	for len(contents) > 0 {
-		lineEnd := bytes.IndexByte(contents, '\n')
-		output.WriteByte(prefix)
-		if lineEnd < 0 {
-			output.Write(contents)
-			output.WriteByte('\n')
-			return
-		}
-		output.Write(contents[:lineEnd+1])
-		contents = contents[lineEnd+1:]
+func managedBody(block []byte) []string {
+	lines := strings.Split(strings.ReplaceAll(string(block), "\r\n", "\n"), "\n")
+	return lines[1 : len(lines)-1]
+}
+
+func lineDiff(before, after []string) []diffLine {
+	common := make([][]int, len(before)+1)
+	for index := range common {
+		common[index] = make([]int, len(after)+1)
 	}
+	for i := len(before) - 1; i >= 0; i-- {
+		for j := len(after) - 1; j >= 0; j-- {
+			if before[i] == after[j] {
+				common[i][j] = common[i+1][j+1] + 1
+			} else {
+				common[i][j] = max(common[i+1][j], common[i][j+1])
+			}
+		}
+	}
+
+	lines := make([]diffLine, 0, len(before)+len(after))
+	i, j := 0, 0
+	for i < len(before) || j < len(after) {
+		switch {
+		case i < len(before) && j < len(after) && before[i] == after[j]:
+			lines = append(lines, diffLine{prefix: "  ", text: before[i]})
+			i++
+			j++
+		case i < len(before) && (j == len(after) || common[i+1][j] >= common[i][j+1]):
+			lines = append(lines, diffLine{prefix: "- ", text: before[i]})
+			i++
+		default:
+			lines = append(lines, diffLine{prefix: "+ ", text: after[j]})
+			j++
+		}
+	}
+	return lines
 }
 
 func writeListSection(output *bytes.Buffer, heading, none string, values []string) {

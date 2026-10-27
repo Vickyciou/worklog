@@ -22,10 +22,66 @@ func TestRefreshReplacesOnlyManagedBlock(t *testing.T) {
 	if string(refreshed) != string(want) {
 		t.Fatalf("refreshed journal = %q, want %q", refreshed, want)
 	}
-	for _, value := range []string{"--- existing managed block", "-old", "+new"} {
+	for _, value := range []string{"- old\n", "+ new\n"} {
 		if !strings.Contains(string(difference), value) {
 			t.Fatalf("diff missing %q:\n%s", value, difference)
 		}
+	}
+}
+
+func TestRefreshDiffShowsChangedLinesWithContext(t *testing.T) {
+	otherDigest := strings.Repeat("f", len(testDigest))
+	tests := []struct {
+		name     string
+		existing string
+		rendered string
+		want     string
+	}{
+		{
+			name:     "insertion",
+			existing: "a\nb\nc\nd\ne\nf\ng",
+			rendered: "a\nb\nc\nd\nnew\ne\nf\ng",
+			want:     "  ...\n  c\n  d\n+ new\n  e\n  f\n  ...\n",
+		},
+		{
+			name:     "replacement",
+			existing: "a\nold\nb",
+			rendered: "a\nnew\nb",
+			want:     "  a\n- old\n+ new\n  b\n",
+		},
+		{
+			name:     "distant changes",
+			existing: "1\n2\n3\n4\n5\n6\n7\n8\n9",
+			rendered: "0\n1\n2\n3\n4\n5\n6\n7\n8\n9\n10",
+			want:     "+ 0\n  1\n  2\n  ...\n  8\n  9\n+ 10\n",
+		},
+		{
+			name:     "blank context line",
+			existing: "## A\n\n- one",
+			rendered: "## A\n\n- one\n- two",
+			want:     "  ...\n\n  - one\n+ - two\n",
+		},
+		{
+			name:     "digest only",
+			existing: "same",
+			rendered: "same",
+			want:     "  (no visible changes)\n",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			existing := []byte(managedFixture(test.existing) + "\n")
+			rendered := []byte(strings.Replace(managedFixture(test.rendered), testDigest, otherDigest, 1) + "\n")
+
+			_, difference, err := Refresh(existing, rendered)
+
+			if err != nil {
+				t.Fatalf("Refresh: %v", err)
+			}
+			if string(difference) != test.want {
+				t.Fatalf("diff =\n%q\nwant\n%q", difference, test.want)
+			}
+		})
 	}
 }
 

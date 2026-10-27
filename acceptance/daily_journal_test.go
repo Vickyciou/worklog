@@ -324,8 +324,10 @@ func TestDayGeneratesAndRefreshesHistoricalManagedBlock(t *testing.T) {
 	assertContains(t, declined.stdout, "Not updated. Run worklog day again when you're ready.")
 	assertContains(t, declined.stdout, "Journal changes: "+destination)
 	assertContains(t, declined.stdout, "Update this journal? [y/N]: ")
-	assertContains(t, declined.stdout, "--- existing managed block")
-	assertContains(t, declined.stdout, "+- Historical refreshed outcome")
+	assertContains(t, declined.stdout, "+ - Historical refreshed outcome")
+	if strings.Contains(declined.stdout, "source-digest") {
+		t.Fatalf("update diff shows the source digest marker:\n%s", declined.stdout)
+	}
 	afterDecline, err := os.ReadFile(destination)
 	if err != nil || !bytes.Equal(afterDecline, withManual) {
 		t.Fatalf("declined refresh changed journal: error=%v", err)
@@ -514,7 +516,10 @@ func TestDayUpdatesTodaysJournalWithoutRefreshFlag(t *testing.T) {
 	updated := environment.runWithInput(t, "y\n", "day")
 	assertSucceeded(t, updated)
 	assertContains(t, updated.stdout, "Journal changes: "+shown)
-	assertContains(t, updated.stdout, "+- Afternoon change")
+	assertContains(t, updated.stdout, "  - Morning change\n+ - Afternoon change\n")
+	if strings.Contains(updated.stdout, "- - Morning change") {
+		t.Fatalf("update diff removed an unchanged line:\n%s", updated.stdout)
+	}
 	assertContains(t, updated.stdout, "Updated journal "+shown+".")
 	contents, err := os.ReadFile(destination)
 	if err != nil {

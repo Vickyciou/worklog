@@ -69,6 +69,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 49. As a user seeking help, I want task-oriented command help with examples and exact recovery actions, so that I do not need to inspect configuration files.
 50. As a user, I want to change an existing profile's language, timezone, journal destination and daily summary preference without editing JSON, so that settings can evolve safely after setup.
 51. As a user adding another profile, I want the setup-style guided flow to register its initial repository and author too, so that I do not need a long command or multiple follow-up commands.
+52. As a user with a configured profile language, I want supported AI presets to write summary prose in that language, so that source-language differences do not unexpectedly change my journal language.
 
 ## Implementation Decisions
 
@@ -80,6 +81,7 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Provide `profile add [name]` without settings flags as the guided path for adding another profile. Reuse setup's repository, author, timezone, language, journal destination and daily-summary discovery, save the initial author and repository mapping with the profile after one confirmation, and retain the explicit flags form as the advanced scriptable contract.
 - Treat `work`, `personal` and custom profile names as routing labels with identical capabilities. They do not silently change privacy or collection behavior.
 - Present summarization as a user goal rather than a raw command. Offer deterministic built-in output by default and, once the command adapter is available, offer executable-discovered Codex and Claude Code presets. The first preset release has no user-facing Custom command option. A preset simply invokes the provider CLI and lets it reuse its own session; worklog never probes, imports, copies or stores provider credentials, and falls back deterministically when invocation fails.
+- Instruct Codex and Claude Code presets to use the profile language for focus, topics, completed outcomes and approaches, decisions and reasons, and next steps. Preserve public technology names and identifiers when translation would reduce accuracy. Built-in remains deterministic and preserves captured text instead of claiming translation capability.
 - Keep `capture`, author identities, repository mappings and raw summarizer commands available as advanced contracts, but omit them from the shortest first-run explanation. Root help leads with setup, daily generation, adding the current repository, settings and diagnostics; detailed help remains available for every command and subcommand.
 - Treat a profile as a routing and privacy boundary. Each profile owns repository allowlists, author identities, timezone, journal destination, redaction policy, summarizer and rendering preferences.
 - Require each registered repository to resolve to exactly one profile. Reject overlapping mappings during setup and doctor checks.

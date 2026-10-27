@@ -262,6 +262,9 @@ Behavior:
   Code, and an advanced summarizer command all receive that boundary and must
   return a schema-valid DailySummary JSON object. Missing, timed-out, failed,
   empty, malformed, or invalid providers use the deterministic Built-in fallback.
+  Codex and Claude Code are instructed to use the profile language for summary
+  prose while preserving public technology names and identifiers. Built-in
+  preserves captured text and does not translate it.
   Worklog then renders and previews the complete journal. The
   destination is:
 

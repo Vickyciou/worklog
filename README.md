@@ -118,7 +118,10 @@ Built-in creates a deterministic summary. Codex, Claude Code, and an advanced
 summarizer command all use the same stdin/stdout boundary and must return a
 schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, empty,
 malformed, or invalid commands fall back deterministically without exposing provider
-stderr. The core prints the complete Markdown preview before asking for confirmation.
+stderr. Codex and Claude Code presets are instructed to write human-language summary
+fields in the profile language while preserving public technology names and identifiers.
+Built-in preserves the language of captured facts and does not translate them. The core
+prints the complete Markdown preview before asking for confirmation.
 Only `y` or `yes` writes. The core chooses the destination as
 `<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`; configured providers never
 choose a path.

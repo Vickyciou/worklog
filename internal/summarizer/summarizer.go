@@ -22,7 +22,7 @@ const TimeoutEnv = "WORKLOG_SUMMARIZER_TIMEOUT"
 
 const maxOutputBytes = 1024 * 1024
 
-const presetPrompt = "Summarize the post-redaction DailyFacts JSON from stdin. Return only one DailySummary JSON object matching the supplied schema. Do not return Markdown, choose paths, use tools, or add facts not supported by the input."
+const presetPromptBase = "Summarize the post-redaction DailyFacts JSON from stdin. Return only one DailySummary JSON object matching the supplied schema. Do not return Markdown, choose paths, use tools, or add facts not supported by the input."
 
 const dailySummarySchema = `{"type":"object","additionalProperties":false,"required":["version","focus","completed","decisions","next_steps","technologies"],"properties":{"version":{"const":1},"focus":{"type":"array","maxItems":3,"items":{"type":"string","minLength":1}},"completed":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["topic","items"],"properties":{"topic":{"type":"string","minLength":1},"items":{"type":"array","minItems":1,"items":{"type":"object","additionalProperties":false,"required":["outcome"],"properties":{"outcome":{"type":"string","minLength":1},"approach":{"type":"string","minLength":1}}}}}}},"decisions":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["decision"],"properties":{"decision":{"type":"string","minLength":1},"reason":{"type":"string","minLength":1}}}},"next_steps":{"type":"array","items":{"type":"string","minLength":1}},"technologies":{"type":"array","maxItems":10,"items":{"type":"string","minLength":1}}}}`
 
@@ -66,7 +66,8 @@ func Executable(command string) (string, error) {
 	return exec.LookPath(arguments[0])
 }
 
-func RunPreset(ctx context.Context, mode string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {
+func RunPreset(ctx context.Context, mode, language string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {
+	prompt := presetPrompt(language)
 	switch mode {
 	case config.SummaryCodex:
 		executable, err := exec.LookPath("codex")
@@ -93,7 +94,7 @@ func RunPreset(ctx context.Context, mode string, facts dailyfacts.Document, work
 		arguments := []string{
 			executable, "exec", "--ephemeral", "--ignore-user-config", "--ignore-rules",
 			"--sandbox", "read-only", "--skip-git-repo-check", "--color", "never",
-			"--output-schema", schemaPath, presetPrompt,
+			"--output-schema", schemaPath, prompt,
 		}
 		return runArguments(ctx, arguments, facts, workingDirectory, timeout)
 	case config.SummaryClaudeCode:
@@ -104,12 +105,16 @@ func RunPreset(ctx context.Context, mode string, facts dailyfacts.Document, work
 		arguments := []string{
 			executable, "--print", "--safe-mode", "--tools", "", "--permission-prompts", "none",
 			"--no-session-persistence", "--output-format", "text", "--json-schema", dailySummarySchema,
-			"--system-prompt", presetPrompt,
+			"--system-prompt", prompt,
 		}
 		return runArguments(ctx, arguments, facts, workingDirectory, timeout)
 	default:
 		return dailysummary.Document{}, FailureUnavailable
 	}
+}
+
+func presetPrompt(language string) string {
+	return presetPromptBase + " Target language: " + strings.TrimSpace(language) + ". Write focus statements, topic names, completed outcomes and approaches, decisions and reasons, and next steps in the target language. Preserve public technology names and identifiers when translation would reduce accuracy."
 }
 
 func runArguments(ctx context.Context, arguments []string, facts dailyfacts.Document, workingDirectory string, timeout time.Duration) (dailysummary.Document, Failure) {

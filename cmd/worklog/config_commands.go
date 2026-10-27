@@ -158,7 +158,7 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, refresh, s
 			if plan.profile.EffectiveSummaryMode() == config.SummaryCustom {
 				providerSummary, failure = summarizer.Run(context.Background(), plan.profile.SummarizerCommand, plan.facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
 			} else {
-				providerSummary, failure = summarizer.RunPreset(context.Background(), plan.profile.EffectiveSummaryMode(), plan.facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
+				providerSummary, failure = summarizer.RunPreset(context.Background(), plan.profile.EffectiveSummaryMode(), plan.profile.Language, plan.facts, application.paths.StateHome, summarizer.ConfiguredTimeout())
 			}
 			if failure != "" {
 				label := "Summarizer"

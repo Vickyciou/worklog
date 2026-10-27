@@ -79,6 +79,49 @@ func TestUnavailablePresetKeepsBuiltInAvailable(t *testing.T) {
 	}
 }
 
+func TestPresetSummaryUsesProfileLanguage(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("shell fixtures are covered by portable preset runner tests on Windows")
+	}
+	environment := newEnvironment(t)
+	providerBin := filepath.Join(environment.root, "provider-bin")
+	writeFakePresetCLIs(t, providerBin)
+	argumentsPath := filepath.Join(environment.root, "provider-arguments")
+	environment.environment = cleanEnvironment(environment.environment, map[string]string{
+		"PATH": providerBin + string(os.PathListSeparator) + systemCommandPath(t),
+	})
+	environment.environment = append(environment.environment,
+		"WORKLOG_PRESET_MODE=language",
+		"WORKLOG_PRESET_ARGS="+argumentsPath,
+	)
+	const email = "language@example.invalid"
+	assertSucceeded(t, environment.run(t,
+		"profile", "add", "work",
+		"--timezone", "Asia/Taipei",
+		"--language", "zh-TW",
+		"--journal-destination", environment.journalDestination,
+		"--daily-summary", "claude-code",
+	))
+	assertSucceeded(t, environment.run(t, "author", "add", "work", email))
+	assertSucceeded(t, environment.run(t, "repo", "add", "work", environment.repository))
+	now := time.Date(2026, 9, 10, 9, 0, 0, 0, time.FixedZone("Asia/Taipei", 8*60*60))
+	createCommitAt(t, environment, environment.repository, email,
+		now.Format(time.RFC3339), now.Format(time.RFC3339), "Implement language-aware summaries", "")
+
+	result := environment.runWithInput(t, "y\n", "day", now.Format(time.DateOnly))
+
+	assertSucceeded(t, result)
+	assertContains(t, result.stdout, "繁體中文摘要")
+	if strings.Contains(result.stdout, "English summary") {
+		t.Fatal("English provider summary was rendered for a zh-TW profile")
+	}
+	arguments, err := os.ReadFile(argumentsPath)
+	if err != nil {
+		t.Fatalf("read provider arguments: %v", err)
+	}
+	assertContains(t, string(arguments), "Target language: zh-TW.")
+}
+
 func TestCodexAndClaudeCodePresetsUseTheSharedValidatedBoundary(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("shell fixtures are covered by portable preset runner tests on Windows")
@@ -199,6 +242,16 @@ fi
 case "$WORKLOG_PRESET_MODE" in
   success)
     printf '%s\n' '{"version":1,"focus":["Preset focus"],"completed":[{"topic":"Provider","items":[{"outcome":"Preset adapter output"}]}],"decisions":[],"next_steps":[],"technologies":["Go"]}'
+    ;;
+  language)
+    case "$*" in
+      *"Target language: zh-TW."*)
+        printf '%s\n' '{"version":1,"focus":["繁體中文摘要"],"completed":[{"topic":"語言","items":[{"outcome":"依照 profile 語言產生摘要"}]}],"decisions":[],"next_steps":[],"technologies":["Go"]}'
+        ;;
+      *)
+        printf '%s\n' '{"version":1,"focus":["English summary"],"completed":[{"topic":"Language","items":[{"outcome":"Ignored profile language"}]}],"decisions":[],"next_steps":[],"technologies":["Go"]}'
+        ;;
+    esac
     ;;
   nonzero)
     printf '%s\n' 'provider-stderr-secret' >&2

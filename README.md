@@ -1,5 +1,7 @@
 # worklog
 
+English | [繁體中文](README.zh-TW.md)
+
 **worklog turns your Git commits into a daily work journal.**
 
 [Quick start](#quick-start) ·

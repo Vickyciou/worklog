@@ -1,17 +1,41 @@
 # worklog
 
-`worklog` is a portable command-line tool for recording and rendering work journals.
+worklog turns your Git commits into a daily work journal.
 
-Building and testing require Go 1.23 or newer. The compiled CLI does not require a
-Go installation at runtime.
+At the end of the day, run `worklog day`. It gathers what you committed, shows you
+the journal it would write, and saves it as a Markdown file once you say yes. The
+journals work well in Obsidian, and they stay on your own computer.
 
-## Install a release
+```text
+$ worklog
+  work   2026-10-27   2 commits   not written yet
 
-Releases provide one executable for each supported platform: macOS and Linux on
-arm64 (Apple silicon) and amd64 (Intel). Each release also has a `SHA256SUMS` file
-and names the commit it was built from.
+Next: worklog day
+```
 
-1. Download your platform's executable and the checksums. The repository is
+## How it works
+
+1. **You commit as usual.** Every commit you make in a registered repository
+   counts. Its subject line becomes an entry in the journal.
+2. **Optionally, your AI agent adds detail.** When you commit with an agent such as
+   Claude Code or Codex, it can record what you did, how, and why. worklog stores
+   this as a Git note on the commit, so the journal gets richer entries. See
+   [Recording more detail](#recording-more-detail).
+3. **You run `worklog day`.** worklog writes one journal per profile per day, for
+   example `~/Documents/worklog/work/2026/2026-10/2026-10-27.md`.
+
+Profiles keep different parts of your life apart. A typical setup has a `work`
+profile and a `personal` profile, each with its own repositories, email, timezone,
+language, and journal folder. Their journals never mix.
+
+## Install
+
+### From a release
+
+Releases include macOS and Linux builds for Apple silicon / arm64 and for Intel /
+amd64. You don't need Go installed.
+
+1. Download the build for your computer and the checksum file. The repository is
    private, so use the GitHub CLI with an account that can read it:
 
    ```sh
@@ -21,245 +45,237 @@ and names the commit it was built from.
      --pattern "worklog_${version}_${platform}" --pattern SHA256SUMS
    ```
 
-2. Verify the download. Every line must end with `OK`:
+2. Check that the download is intact. The line for your file must end in `OK`:
 
    ```sh
    shasum -a 256 -c SHA256SUMS --ignore-missing
    ```
 
-3. Put it on your `PATH` as `worklog`:
+3. Install it as `worklog` somewhere on your `PATH`:
 
    ```sh
    install -m 755 "worklog_${version}_${platform}" ~/bin/worklog
    worklog version
    ```
 
-   If you downloaded the macOS file with a browser, also run
+   If you downloaded the macOS file with a browser instead, also run
    `xattr -d com.apple.quarantine ~/bin/worklog`.
 
-4. Go to a Git repository you work in and run `worklog setup`.
+To upgrade, repeat these steps with the new version. Your settings, notes, and
+journals are stored separately and stay as they are.
 
-To upgrade, repeat steps 1 to 3 with the new version. Configuration, captured Git
-notes, and journals live outside the executable and stay unchanged.
+### From source
 
-## Publish a release
-
-Push a version tag from `main`:
-
-```sh
-git tag v0.1.0
-git push origin v0.1.0
-```
-
-The release workflow runs the tests on Linux and macOS, builds all four
-executables with `scripts/release.sh`, and runs `scripts/smoke-test.sh` for each
-one on its own platform in a fresh environment with no Go toolchain. The GitHub
-release is created only when every step passes. To check a build locally:
-
-```sh
-scripts/release.sh v0.0.0
-scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
-```
-
-## Build
-
-From the repository root, build the CLI with:
+You need Go 1.23 or newer:
 
 ```sh
 go build -o ./bin/worklog ./cmd/worklog
 ```
 
-## Acceptance tests
+## First-time setup
 
-Run the external-process acceptance suite with:
-
-```sh
-go test ./...
-```
-
-The suite compiles its own CLI executable and runs it with isolated temporary home,
-configuration, state, Git repository, and journal destination directories.
-
-## Configuration
-
-Run the guided setup once from the first Git repository:
+Go to a Git repository you work in and run:
 
 ```sh
+cd ~/code/my-project
 worklog setup
 ```
 
-Choose a Work, Personal, or Custom profile. The current Git root and a
-profile-specific journal folder are editable defaults. Setup reads the effective
-author email from Git, detects the timezone, and asks for the journal language with
-the system language as the default. Language sets the journal headings and the
-language of AI summaries. Setup shows every resolved value for one final
-confirmation. If Git has no author email or the timezone cannot be detected safely,
-setup asks for the missing value. Daily summary choices are
-Built-in, Codex, and Claude Code. Built-in needs no AI or network; the other choices
-appear only when their executable is available and reuse the CLI's current session.
-Worklog never probes or stores provider credentials.
+Setup asks a few questions, and most have a ready answer you can accept with
+Enter:
 
-Discover commands and examples through either help form:
+- **Profile.** Work, Personal, or a name you choose.
+- **Repository.** The repository you're in.
+- **Journal language.** Your system language. It sets the journal headings, and
+  the language AI summaries are written in.
+- **Journal folder.** `~/Documents/worklog/<profile>`.
+- **Daily summary.** How each journal gets written. See
+  [Choosing a daily summary](#choosing-a-daily-summary).
 
-```sh
-worklog --help
-worklog setup --help
-worklog profile add
-worklog settings --help
-worklog profile add --help
-worklog profile set --help
-worklog help repo
-worklog help repo add
-```
+Your email comes from Git and your timezone from the system. Setup asks for them
+only when it can't find them. You see everything once more before anything is
+saved.
 
-`day`, `inspect`, and `doctor` help stays in plain language. Add `--details` for
-their privacy, summary, and file-safety rules:
+## Every day
 
-```sh
-worklog day --details
-worklog help inspect --details
-```
-
-Use the configuration command families to add, inspect, and validate entries:
-
-```sh
-worklog profile add
-worklog profile add personal
-worklog profile add personal --timezone Asia/Taipei --language zh-TW --journal-destination /path/to/journal
-worklog profile list
-worklog profile show personal
-worklog profile validate
-
-worklog settings personal
-worklog profile set personal --language en-US --timezone Asia/Taipei
-worklog profile set personal --journal-destination ~/Documents/worklog/personal
-worklog profile set personal --daily-summary codex
-worklog profile set personal --deny-literal private-project --deny-literal client-code
-
-worklog author add personal developer@example.com
-worklog author list personal
-worklog author validate personal
-
-worklog repo add /path/to/repository --profile personal
-worklog repo list
-worklog repo show /path/to/repository
-worklog repo validate
-```
-
-`profile add [name]` without settings flags follows the guided setup flow. It
-uses the current Git repository as an editable default, detects its author plus
-the system timezone, asks for the journal language, journal folder, and daily summary,
-then saves the profile, author identity, and repository mapping after one final
-confirmation. Omit `name` to choose Work, Personal, or Custom from a menu. The
-long flags form remains available for scripts and advanced configuration.
-
-`settings [profile]` is the guided update path. With one profile it selects it
-automatically; with several profiles it asks which one to change. `profile set`
-offers the same language, IANA timezone, journal-folder, and daily-summary update
-boundary for scripts. Both validate the complete profile before atomically replacing config.
-Changing the journal folder affects future output only and never moves, copies, or
-deletes existing journals.
-
-`repo show` resolves a registered repository to the profile, timezone, language, and
-journal destination that daily commands should use. A repository can belong to only
-one profile. Exact duplicate paths and overlapping parent or child mappings are
-rejected.
-
-## Generate or update a daily journal
-
-After setup, daily use needs no profile flags:
-
-```sh
-worklog day
-worklog day 2026-09-02
-worklog day 2026-09-02 --refresh
-```
-
-`day` discovers every profile with activity, using each profile's current local date
-when no date is passed. Each profile gets its own post-redaction `DailyFacts`, summary
-request, preview, confirmation, and journal destination; profile facts are never
-combined. Profiles without registered repositories or author identities stop before
-any provider invocation or write and report the command needed to repair the mapping.
-Built-in creates a deterministic summary. Codex, Claude Code, and an advanced
-summarizer command all use the same stdin/stdout boundary and must return a
-schema-valid `DailySummary` JSON object on stdout. Missing, timed-out, failed, empty,
-malformed, or invalid commands fall back deterministically without exposing provider
-stderr. Codex and Claude Code presets are instructed to write human-language summary
-fields in the profile language while preserving public technology names and identifiers.
-Built-in preserves the language of captured facts and does not translate them. Journal
-headings follow the profile language: zh languages use Taiwan Traditional Chinese
-headings, and every other language uses English headings. Frontmatter tags stay
-`[工作日誌]` so existing Obsidian queries keep working. The core
-prints the complete Markdown preview before asking for confirmation.
-Only `y` or `yes` writes. The core chooses the destination as
-`<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`; configured providers never
-choose a path.
-
-The rendered Obsidian note retains the legacy Obsidian-compatible `date`, `type`,
-`tech`, and `tags` frontmatter plus the `# 工作日誌 - YYYY-MM-DD` title. Public
-technology names remain bounded and deduplicated. Taiwan Traditional Chinese headings
-and an explicit managed block include a DailyFacts source digest. A confirmed first write is
-installed atomically. Passing `YYYY-MM-DD` previews and generates that historical
-date when it does not exist. Running `day` again for a date that already has a
-journal updates it. When the collected facts match the managed block's source
-digest, `day` reports that the journal is up to date and does not call a summarizer.
-Otherwise it validates exactly one managed block, displays its diff, preserves all
-bytes outside the block, rechecks the previewed file, and atomically replaces it only
-after confirmation. `--refresh` regenerates an existing journal even when its facts
-are unchanged, which applies a changed language or daily summary setting.
-
-## Check today's status
+### See where you are
 
 ```sh
 worklog
-worklog status
 ```
 
-Running `worklog` without a command shows one line per profile with its local date,
-the number of commits worklog will use, and whether today's journal is not written
-yet, up to date, or has new changes. Profiles with missing repositories or authors
-are marked as needing attention, and the last line names the next command to run.
-Status never calls a summarizer, writes files, or prints commit content.
+Running `worklog` on its own shows today's commits and the journal state for each
+profile. The last line tells you what to run next. It only reads, so it's safe to
+run any time.
 
-## Inspect daily facts
-
-Inspect one profile's facts for its current local date, or pass a historical date:
+### Write today's journal
 
 ```sh
-worklog inspect personal
-worklog inspect personal 2026-09-02
+worklog day
 ```
 
-Collection scans only the profile's registered repositories. It matches author
-identities and uses commit timestamps in the profile timezone, deduplicates commits
-reachable from multiple refs, and ignores merge commits and `refs/notes/worklog`.
-The JSON output includes structured worklog notes and commit-subject fallback facts,
-but excludes hashes, repository paths, author emails, commit bodies, diffs, source
-code, and capture source metadata. Before output, it replaces profile-specific
-denied literals and common secret, token, hash, path, email, raw diff, and fenced-code
-patterns. This is the exact post-redaction `DailyFacts` boundary used by summarizer
-adapters; `inspect` does not invoke one or write a journal.
+For each profile with commits today, you see a one-line overview and then the full
+journal. Type `y` to save it. Anything else leaves it unwritten, and you can run
+`worklog day` again later.
 
-## Diagnose configuration
+A journal looks like this:
 
-Run the non-destructive diagnostic before daily generation when an environment or
-mapping has changed:
+```markdown
+---
+date: 2026-10-27
+type: worklog-daily
+tech: [Go]
+tags: [工作日誌]
+---
+
+<!-- worklog:managed:start source-digest=sha256:… -->
+# Work Log - 2026-10-27
+
+## Highlights
+
+- Added login retry with backoff
+- Fix token refresh race
+
+## Completed
+
+### Work
+
+- Added login retry with backoff
+  - Approach: Retry three times with exponential backoff
+- Fix token refresh race
+
+## Decisions
+
+- Cap retries at three (reason: Avoid locking out accounts)
+
+## Next Steps
+
+- Add retry metrics
+
+<!-- worklog:managed:end -->
+```
+
+Headings are in Traditional Chinese when the profile language starts with `zh`
+(for example `zh-TW`), and in English otherwise. The `tags` line stays the same in
+both so your Obsidian searches keep working.
+
+### Commit more later? Run it again
+
+Running `worklog day` again on the same day shows only what changed, with `+` for
+added lines and `-` for removed ones, and asks before updating:
+
+```text
+  - Add login retry
+  - Fix token refresh race
++ - Add retry metrics
+```
+
+If nothing changed, it says the journal is already up to date. Anything you write
+outside the two `worklog:managed` marker lines is yours. worklog never touches it.
+
+### A past day, or a rebuild
 
 ```sh
-worklog doctor
+worklog day 2026-10-20            # write or update a past day
+worklog day 2026-10-20 --refresh  # rebuild even though no commits changed
 ```
 
-Doctor checks Git, config and state roots, required profile settings, authors,
-non-overlapping registered repositories, Git notes access, journal destinations, and
-summary executables. Every failure includes a repair action and produces a non-zero
-exit status. It never reads captured note content, invokes a provider, probes provider
-credentials, or prints configured paths, commands, author emails, denied literals, or
-captured facts.
+Use `--refresh` after changing a profile's language or daily summary, to rewrite
+an existing journal with the new setting.
 
-## Advanced command summarizers
+## Choosing a daily summary
 
-Guided setup and settings expose only Built-in, Codex, and Claude Code. Advanced
-configuration retains the raw command contract without adding a Custom UI option:
+| Choice | What it does | Needs |
+| --- | --- | --- |
+| **Built-in** | Lists your work as recorded, with no rewriting. | Nothing. No AI and no network. |
+| **Claude Code** | Asks Claude Code to write the journal in the profile's language. | The `claude` CLI, already signed in. |
+| **Codex** | Asks Codex to write the journal in the profile's language. | The `codex` CLI, already signed in. |
+
+worklog reuses the CLI's existing sign-in and never stores or checks your
+credentials. If the AI isn't available, fails, or returns something unusable,
+worklog falls back to Built-in for that run and tells you why.
+
+The AI receives only a cleaned-up list of your work. It never sees code, diffs,
+commit hashes, file paths, or email addresses. To see exactly what it receives, run
+`worklog inspect`.
+
+## Changing your setup
+
+| I want to… | Run |
+| --- | --- |
+| Add the repository I'm in | `worklog repo add` |
+| Add a repository to a specific profile | `worklog repo add ~/code/api --profile work` |
+| Change language, timezone, folder, or summary | `worklog settings` |
+| See a profile's settings | `worklog profile show work` |
+| Add another profile, such as personal | `worklog profile add` |
+| Add another email for a profile | `worklog author add work me@company.example` |
+| List the repositories in a profile | `worklog repo list work` |
+
+With only one profile, worklog uses it automatically. With several, it asks which
+one you mean, or takes `--profile`.
+
+A repository belongs to exactly one profile. Moving the journal folder only
+affects new journals. Existing ones stay where they are.
+
+### Keeping private words out
+
+If some words shouldn't appear in journals or reach an AI, such as a client name or
+an internal codename, list them for the profile:
+
+```sh
+worklog profile set work --deny-literal client-codename --deny-literal internal-host
+```
+
+worklog replaces them before anything is summarized. It also removes common
+secrets, tokens, paths, and emails on its own. `profile show` only shows how many
+words are hidden, never the words themselves.
+
+## Recording more detail
+
+A commit subject alone says what changed. A note can add how you did it, why you
+made a decision, and what's next. Agents and scripts record notes with
+`worklog capture`:
+
+```sh
+echo '{"version":1,"outcome":"Added login retry with backoff",
+       "decisions":[{"decision":"Cap retries at three","reason":"Avoid locking out accounts"}],
+       "next_steps":["Add retry metrics"]}' \
+  | worklog capture . HEAD
+```
+
+`worklog capture --help` lists every field. Recording the same note twice is
+harmless. A different note for a commit that already has one is refused, so
+nothing gets overwritten. The `gen-commit` skill does this automatically after each
+commit it makes.
+
+## When something looks wrong
+
+```sh
+worklog doctor     # finds setup problems and tells you how to fix each one
+worklog inspect    # shows the facts worklog collected for today
+worklog inspect work 2026-10-20
+```
+
+`doctor` never prints your commits, paths, or private words, and never calls an
+AI. Every command has `--help`. `day`, `inspect`, and `doctor` also have
+`--details` with the exact privacy and file-safety rules.
+
+## Where things are stored
+
+- **Journals** go in each profile's journal folder.
+- **Notes** live in your repositories under the Git ref `refs/notes/worklog`.
+- **Settings** go in your user configuration folder, for example
+  `~/Library/Application Support/worklog` on macOS. Set `WORKLOG_CONFIG_HOME` to
+  use another folder.
+- **Working files** go in `~/.local/state/worklog`. Set `WORKLOG_STATE_HOME` to
+  use another folder.
+
+Nothing is stored inside the worklog source code.
+
+## Advanced: your own summary command
+
+Instead of Built-in, Claude Code, or Codex, a profile can use any command you
+write:
 
 ```sh
 worklog profile add local --timezone Asia/Taipei --language zh-TW \
@@ -267,16 +283,39 @@ worklog profile add local --timezone Asia/Taipei --language zh-TW \
   --summarizer-command '/path/to/summary-adapter --format json'
 ```
 
-Worklog executes the command from its state directory, writes exactly the inspected
-post-redaction `DailyFacts` JSON to stdin, and accepts only one strict
-`DailySummary` JSON object on stdout. The supported document contains `version`,
-`focus`, topic-grouped `completed` items, `decisions`, `next_steps`, and canonical
-public `technologies`; it cannot select a journal path or return final Markdown.
-Credentials must come from the command environment or system credential storage.
-The default timeout is two minutes and can be overridden with
-`WORKLOG_SUMMARIZER_TIMEOUT` using a Go duration such as `30s`.
+The command receives the same JSON that `worklog inspect` prints, on stdin. It
+must print one summary JSON object on stdout with `version`, `focus`, `completed`,
+`decisions`, `next_steps`, and `technologies`. worklog still decides the file path
+and writes the Markdown itself. The command has two minutes by default. Change
+that with `WORKLOG_SUMMARIZER_TIMEOUT`, for example `30s`. Keep credentials in the
+command's environment or your system keychain, never in the command line. See
+`worklog day --details` for the full rules.
 
-Configuration and runtime state stay outside the source repository. Defaults follow
-the platform user configuration directory and XDG state directory conventions. Set
-`WORKLOG_CONFIG_HOME` or `WORKLOG_STATE_HOME` to replace either application root;
-tests use these overrides to remain isolated from real user data.
+## For contributors
+
+Run the tests:
+
+```sh
+go test ./...
+```
+
+The acceptance tests build the CLI and run it as a separate program, with
+temporary home, settings, repository, and journal folders. They never touch your
+real data.
+
+Publish a release by pushing a version tag from `main`:
+
+```sh
+git tag v0.1.0
+git push origin v0.1.0
+```
+
+GitHub Actions then runs the tests on Linux and macOS. It builds all four
+platforms with `scripts/release.sh` and tries each build on its own platform with
+`scripts/smoke-test.sh`, in a clean environment without Go. The release is
+published only when every step passes. To try a release build locally:
+
+```sh
+scripts/release.sh v0.0.0
+scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
+```

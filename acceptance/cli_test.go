@@ -47,37 +47,39 @@ func TestMain(m *testing.M) {
 }
 
 func TestRootHelp(t *testing.T) {
-	const expected = `worklog records and renders portable work journals.
+	const expected = `worklog turns your Git commits into a daily work journal.
 
 Usage:
   worklog <command>
 
 Running worklog without a command shows today's status.
 
-Getting started:
-  worklog setup       Detect Git and system settings, then create a profile
-  worklog profile add Add another profile with guided prompts
-  worklog day         Preview, write, or update a daily journal
-  worklog status      Show today's activity and journal state
-  worklog settings    Update an existing profile with guided prompts
+Every day:
+  day           Preview, write, or update today's journal
+  status        Show today's activity and journal state
 
-Commands:
-  capture    Record a structured event for a Git commit
-  inspect    Collect and print one profile's daily facts
-  day        Preview, write, or update a daily journal
-  status     Show today's activity and journal state
-  setup      Create the first profile interactively
-  settings   Update an existing profile interactively
-  profile    Add, update, inspect, and validate profiles
-  author     Add, inspect, and validate author identities
-  repo       Add, inspect, and validate repository mappings
-  doctor     Diagnose configuration and runtime prerequisites
-  help       Show help for worklog
-  version    Print version information
+Set up:
+  setup         First-time setup; run it inside a Git repository
+  settings      Change a profile's language, timezone, folder, or summary
+  repo add      Add a Git repository to a profile
+  profile add   Add another profile with guided prompts
+
+When something looks wrong:
+  doctor        Find setup problems and how to fix them
+  inspect       Show the facts worklog collected for a day
+
+Advanced and integrations:
+  profile       List, show, update, and validate profiles
+  author        Add, list, and validate author emails
+  repo          List, show, and validate repository mappings
+  capture       Record a structured event for a commit (for commit tools)
+  version       Print version information
 
 Options:
   -h, --help       Show help for worklog
   -v, --version    Print version information
+
+Run worklog help <command> for one command's details.
 `
 	for _, arguments := range [][]string{{"help"}, {"--help"}, {"-h"}} {
 		t.Run(strings.Join(arguments, "_"), func(t *testing.T) {

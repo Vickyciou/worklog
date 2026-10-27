@@ -79,7 +79,7 @@ func (application cli) day(arguments []string) error {
 		if index > 0 {
 			fmt.Fprintln(application.stdout)
 		}
-		if err := application.runDayPlan(reader, plans[index], len(plans) > 1); err != nil {
+		if err := application.runDayPlan(reader, plans[index]); err != nil {
 			return err
 		}
 	}
@@ -176,11 +176,13 @@ func classifyJournal(destination string, facts dailyfacts.Document, refresh bool
 	return journalChanged, existing, nil
 }
 
-func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, showProfile bool) error {
+func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan) error {
 	if plan.state == journalCurrent {
 		fmt.Fprintf(application.stdout, "✓ %s: journal for %s is already up to date. Run worklog day %s --refresh to regenerate it anyway.\n", plan.profile.Name, plan.date, plan.date)
 		return nil
 	}
+	summaryName, _, _ := strings.Cut(dailySummaryLabel(plan.profile.EffectiveSummaryMode()), " (")
+	fmt.Fprintf(application.stdout, "%s · %s · %s · %s\n", plan.profile.Name, plan.date, commitCount(len(plan.facts.Facts)), summaryName)
 	update := plan.state == journalChanged
 	shown := displayPath(plan.destination)
 	summary := dailysummary.Fallback(plan.facts, journal.LabelsFor(plan.profile.Language).CompletedTopic)
@@ -218,21 +220,13 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, showProfil
 		if err != nil {
 			return fmt.Errorf("prepare journal update %q: %w", plan.destination, err)
 		}
-		if showProfile {
-			fmt.Fprintf(application.stdout, "Journal changes [%s]: %s\n\n", plan.profile.Name, shown)
-		} else {
-			fmt.Fprintf(application.stdout, "Journal changes: %s\n\n", shown)
-		}
+		fmt.Fprintf(application.stdout, "Journal changes: %s\n\n", shown)
 		if _, err := application.stdout.Write(difference); err != nil {
 			return err
 		}
 		prompt = "Update this journal? [y/N]: "
 	} else {
-		if showProfile {
-			fmt.Fprintf(application.stdout, "Journal preview [%s]: %s\n\n", plan.profile.Name, shown)
-		} else {
-			fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", shown)
-		}
+		fmt.Fprintf(application.stdout, "Journal preview: %s\n\n", shown)
 		if _, err := application.stdout.Write(contents); err != nil {
 			return err
 		}
@@ -267,6 +261,13 @@ func (application cli) runDayPlan(reader *bufio.Reader, plan dayPlan, showProfil
 	}
 	fmt.Fprintf(application.stdout, "\n%s journal %s.\n", verb, shown)
 	return nil
+}
+
+func commitCount(count int) string {
+	if count == 1 {
+		return "1 commit"
+	}
+	return fmt.Sprintf("%d commits", count)
 }
 
 func displayPath(path string) string {

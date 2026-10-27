@@ -59,7 +59,7 @@ func TestDayKeepsActiveProfileAdapterRequestsAndJournalsSeparate(t *testing.T) {
 	result := environment.runWithInput(t, "yes\nyes\n", "day", date)
 	assertSucceeded(t, result)
 	for _, profile := range []string{"personal", "work"} {
-		assertContains(t, result.stdout, "Journal preview ["+profile+"]:")
+		assertContains(t, result.stdout, profile+" · "+date+" · 1 commit · Custom command\nJournal preview: ")
 	}
 
 	countBytes, err := os.ReadFile(counter)
@@ -224,7 +224,7 @@ func TestDayContinuesToNextProfileAfterDecline(t *testing.T) {
 
 	assertSucceeded(t, result)
 	declinedProfile, writtenProfile := "work", "personal"
-	if strings.Index(result.stdout, "Journal preview [personal]:") < strings.Index(result.stdout, "Journal preview [work]:") {
+	if strings.Index(result.stdout, "personal · "+date) < strings.Index(result.stdout, "work · "+date) {
 		declinedProfile, writtenProfile = "personal", "work"
 	}
 	assertContains(t, result.stdout, "Not written. Run worklog day again when you're ready.")

@@ -53,10 +53,7 @@ func (application cli) status(arguments []string) error {
 	for _, profile := range configuration.Profiles {
 		date, commits, state := todayStatus(profile, time.Now())
 		counts[state]++
-		activity := fmt.Sprintf("%d commits", commits)
-		if commits == 1 {
-			activity = "1 commit"
-		}
+		activity := commitCount(commits)
 		if state == statusNeedsAttention {
 			activity = "-"
 		}

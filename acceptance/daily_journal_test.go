@@ -85,7 +85,7 @@ tags: [工作日誌]
 
 	declined := environment.runWithInput(t, "no\n", "day")
 	assertSucceeded(t, declined)
-	if declined.stdout != fmt.Sprintf("Journal preview: %s\n\n%s\nWrite this journal? [y/N]: \nNot written. Run worklog day again when you're ready.\n", destination, expected) {
+	if declined.stdout != fmt.Sprintf("work · %s · 1 commit · Built-in\nJournal preview: %s\n\n%s\nWrite this journal? [y/N]: \nNot written. Run worklog day again when you're ready.\n", date, destination, expected) {
 		t.Fatalf("day preview mismatch\n--- got ---\n%s--- want ---\n%s", declined.stdout, expected)
 	}
 	if _, err := os.Stat(destination); !errors.Is(err, os.ErrNotExist) {
@@ -565,7 +565,7 @@ func TestDayHandlesEachProfileJournalStateIndependently(t *testing.T) {
 	result := environment.runWithInput(t, "y\n", "day", date)
 
 	assertSucceeded(t, result)
-	if strings.Count(result.stdout, "is already up to date.") != 1 || strings.Count(result.stdout, "Journal preview [") != 1 {
+	if strings.Count(result.stdout, "is already up to date.") != 1 || strings.Count(result.stdout, "Journal preview: ") != 1 {
 		t.Fatalf("want one up-to-date profile and one new preview:\n%s", result.stdout)
 	}
 	for _, profile := range []string{"work", "personal"} {

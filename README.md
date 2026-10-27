@@ -382,3 +382,7 @@ published only when every step passes. To try a release build locally:
 scripts/release.sh v0.0.0
 scripts/smoke-test.sh dist/worklog_v0.0.0_darwin_arm64 v0.0.0
 ```
+
+## License
+
+worklog is released under the MIT License. See [LICENSE](LICENSE).

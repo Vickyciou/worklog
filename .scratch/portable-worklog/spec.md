@@ -70,6 +70,11 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 50. As a user, I want to change an existing profile's language, timezone, journal destination and daily summary preference without editing JSON, so that settings can evolve safely after setup.
 51. As a user adding another profile, I want the setup-style guided flow to register its initial repository and author too, so that I do not need a long command or multiple follow-up commands.
 52. As a user with a configured profile language, I want supported AI presets to write summary prose in that language, so that source-language differences do not unexpectedly change my journal language.
+53. As a user running setup from a script or with closed input, I want unanswered prompts to cancel, so that defaults are never saved without a human confirmation.
+54. As a user reviewing a journal preview, I want declining to end calmly and continue to my other profiles, so that choosing not to write is not reported as a failure.
+55. As a user who commits again later in the day, I want `worklog day` to show and apply only the changes to today's journal, so that rerunning it never requires a different command.
+56. As a user, I want `worklog status` to show each profile's activity and journal state for today, so that I know whether anything is left to do.
+57. As a user with a non-Chinese profile language, I want journal headings in that language, so that the whole journal reads consistently.
 
 ## Implementation Decisions
 
@@ -103,7 +108,10 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - Preserve the established Obsidian daily-note layout `<journal-destination>/<YYYY>/<YYYY-MM>/<YYYY-MM-DD>.md`, `date`/`type`/`tech`/`tags` frontmatter, and `# 工作日誌 - YYYY-MM-DD` title.
 - Support a default Taiwan Traditional Chinese daily template compatible with the current journal headings and property types, while allowing profile-level language and template selection.
 - Mark generated note content with explicit managed-block boundaries and a source digest. Refresh updates only that block and preserves content outside it.
-- Default to non-destructive behavior: preview changes, refuse ambiguous destinations, and use atomic replacement after confirmation. Refresh is the explicit regeneration operation.
+- Default to non-destructive behavior: preview changes, refuse ambiguous destinations, and use atomic replacement after confirmation. `day` classifies each active profile's journal as missing, up to date, or changed by comparing the managed block's source digest with the current post-redaction DailyFacts. It creates a missing journal, previews and updates a changed one, and reports an up-to-date one without invoking a summarizer. `--refresh` remains as the explicit update-only form.
+- Treat a declined confirmation as a normal outcome that exits zero and continues to the next active profile. Treat closed input before an answer as cancellation, never as acceptance of a default.
+- Provide a read-only `status` command, also shown when `worklog` runs without arguments, that reports today's activity and journal state per profile using the same classification as `day`.
+- Render journal titles, section headings and empty-section placeholders from a per-language label set. `zh-*` keeps the current Taiwan Traditional Chinese labels byte-for-byte; other languages use English labels. Frontmatter `type` and `tags` stay constant for Obsidian queries. Terminal output stays in English.
 - Derive a day's activity using configured timezone and documented commit timestamp semantics. Deduplicate commits reachable from multiple refs and ignore merge commits by default.
 - Do not sync or push worklog Git notes automatically. Any future export or remote synchronization requires an explicit operation and separate privacy design.
 - Supply setup and doctor diagnostics that explain actionable fixes without exposing secrets or captured content.
@@ -145,3 +153,4 @@ Agent integration 只依賴穩定的 `worklog capture` contract。中央 `gen-co
 - The central skills repository remains the distribution source for `gen-commit` across agents through symlinks. The worklog repository owns only the CLI and the generic capture contract.
 - The repository should begin private. Public release can be reconsidered after tracked history and fixtures are confirmed free of proprietary identifiers.
 - The preferred end-user flow is: install once, run interactive setup once, commit normally, then run `worklog day` at the end of the day.
+- A 2026-10-27 CLI usability review proposed further follow-ups that are not yet ticketed: a one-line summary and `~`-abbreviated paths in `day` output, plain-language help with technical contracts moved behind a details option, an explicit language prompt in setup, root help grouped by frequency of use, optional profile arguments for `inspect` and `repo add [path] [--profile name]` with no legacy positional form, typo suggestions, and human-readable `profile show` output with `--json`.

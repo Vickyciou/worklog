@@ -52,3 +52,17 @@ M2 完成條件已達成：05、07、08、09、10、15、16、17、18、19 的 a
 3. 14 — 驗證 Bash parity 與遷移條件
 
 M3 預定在 M2 完成後開始。Ticket 13 也需要 11 與 M1 的 12 完成。M3 完成條件：11、13、14 的 acceptance criteria 全部通過。
+
+## M4 — 直覺的日常使用
+
+**Outcome:** 使用者每天只需要 `worklog day`、看預覽、回答 `y`；同一天重跑、拒絕寫入或沒有變動時都不會遇到錯誤，並能用 `worklog status` 確認今天的狀態。
+
+**Tickets:** 20、21、22、23、24
+
+**Assignment waves:**
+
+1. 20 — 輸入關閉時取消 guided prompts；21 — 拒絕寫入日誌視為正常結束；24 — 日誌標題跟隨 profile language
+2. 22 — 讓 `worklog day` 自動更新既有日誌
+3. 23 — 新增 `worklog status` 顯示今日狀態
+
+M4 不依賴 M3。使用者於 2026-10-27 決定先完成 M4 再進行 M3。M4 完成條件：20、21、22、23、24 的 acceptance criteria 全部通過。

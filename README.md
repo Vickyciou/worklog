@@ -71,14 +71,15 @@ Next: worklog day
 
 Releases include one ready-to-run file per platform. You don't need Go installed.
 
-1. Download the build for your computer and the checksum file. The repository is
-   private, so use the GitHub CLI with an account that can read it:
+1. Download the build for your computer and the checksum file from the
+   [Releases](https://github.com/Vickyciou/worklog/releases) page, or with `curl`:
 
    ```sh
    version=v0.1.0
    platform=darwin_arm64   # or darwin_amd64, linux_amd64, linux_arm64
-   gh release download "$version" --repo Vickyciou/worklog \
-     --pattern "worklog_${version}_${platform}" --pattern SHA256SUMS
+   base=https://github.com/Vickyciou/worklog/releases/download/$version
+   curl -fLO "$base/worklog_${version}_${platform}"
+   curl -fLO "$base/SHA256SUMS"
    ```
 
 2. Check that the download is intact. The line for your file must end in `OK`:

@@ -59,13 +59,14 @@ Next: worklog day
 
 每個發布版本都為各平台準備好可以直接執行的檔案，不需要安裝 Go。
 
-1. 下載你電腦對應的檔案和檢查碼檔。這個 repo 是私人的，所以要用有讀取權限的帳號搭配 GitHub CLI 下載：
+1. 從 [Releases](https://github.com/Vickyciou/worklog/releases) 頁面下載你電腦對應的檔案和檢查碼檔，或用 `curl` 下載：
 
    ```sh
    version=v0.1.0
    platform=darwin_arm64   # 或 darwin_amd64、linux_amd64、linux_arm64
-   gh release download "$version" --repo Vickyciou/worklog \
-     --pattern "worklog_${version}_${platform}" --pattern SHA256SUMS
+   base=https://github.com/Vickyciou/worklog/releases/download/$version
+   curl -fLO "$base/worklog_${version}_${platform}"
+   curl -fLO "$base/SHA256SUMS"
    ```
 
 2. 確認下載的檔案沒有損壞。你那個檔案的那一行結尾必須是 `OK`：

@@ -233,7 +233,43 @@ worklog 會在做摘要之前把它們替換掉，也會自動移除常見的密
 
 ## 記錄更多細節
 
-commit 標題只說了改了什麼。note 還可以補上怎麼做、為什麼這樣決定、接下來要做什麼。agent 和腳本用 `worklog capture` 記錄 note：
+commit 標題只說了改了什麼。背後的原因通常留在你跟 AI agent 的對話裡，例如為什麼選這個做法、排除了哪些選項、還剩什麼要做。如果 agent 在 commit 時順手把這些記成 note，日誌就不只有「做了什麼」，還會有「怎麼做」和「為什麼」：
+
+```markdown
+- 新增登入重試與退避機制
+  - 作法：失敗時以指數退避重試三次
+
+## 技術決策
+
+- 重試上限為三次（原因：避免帳號被鎖定）
+```
+
+沒有 note 的 commit 也會出現在日誌裡，只是只有標題。
+
+### 設定你的 agent
+
+把下面這段加到 agent 讀取長期指示的地方。例如 Claude Code 用 `~/.claude/CLAUDE.md`，Codex 用 `~/.codex/AGENTS.md`，或是你已經在用的 commit skill：
+
+```markdown
+## Worklog
+
+After each commit you create, record it for worklog:
+
+1. Run `worklog capture --help` once and follow the input it describes.
+2. Write one JSON object about this commit. Include what changed, how, each
+   decision with its reason, the remaining next steps, and the public
+   technologies used. Only include facts the diff and this conversation
+   support. Write the text in <your journal language>.
+3. Leave out secrets, code, file paths, and people's names.
+4. Pipe the JSON to `worklog capture <repository root> <commit hash>`.
+5. If capture fails, keep the commit and tell me the error.
+```
+
+把 `<your journal language>` 換成你日誌用的語言，例如 Traditional Chinese。Built-in 摘要會照原文使用 note，不會翻譯，所以要先指定語言。
+
+### 自己記錄 note
+
+腳本或你自己也可以用同樣的方式記錄 note：
 
 ```sh
 echo '{"version":1,"outcome":"新增登入重試與退避機制",
@@ -242,7 +278,7 @@ echo '{"version":1,"outcome":"新增登入重試與退避機制",
   | worklog capture . HEAD
 ```
 
-`worklog capture --help` 會列出所有欄位。同一筆 note 記錄兩次不會有問題；但如果某個 commit 已經有 note，內容不同的新 note 會被拒絕，所以不會有東西被覆蓋。`gen-commit` skill 每次 commit 後都會自動做這件事。
+`worklog capture --help` 會列出所有欄位。同一筆 note 記錄兩次不會有問題；但如果某個 commit 已經有 note，內容不同的新 note 會被拒絕，所以不會有東西被覆蓋。
 
 ## 疑難排解
 

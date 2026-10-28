@@ -271,9 +271,50 @@ words are hidden, never the words themselves.
 
 ## Recording more detail
 
-A commit subject alone says what changed. A note can add how you did it, why you
-made a decision, and what's next. Agents and scripts record notes with
-`worklog capture`:
+A commit subject only says what changed. The reasons behind it usually live in your
+conversation with an AI agent: why you picked one approach, what you ruled out, and
+what's left to do. If the agent records that as a note when it commits, your journal
+gets the how and the why, not just the what:
+
+```markdown
+- Added login retry with backoff
+  - Approach: Retry three times with exponential backoff
+
+## Decisions
+
+- Cap retries at three (reason: Avoid locking out accounts)
+```
+
+Without a note, the commit still appears in the journal by its subject line.
+
+### Set up your agent
+
+Add these instructions where your agent reads its standing instructions. For
+example, use `~/.claude/CLAUDE.md` for Claude Code, `~/.codex/AGENTS.md` for Codex,
+or the commit skill you already use:
+
+```markdown
+## Worklog
+
+After each commit you create, record it for worklog:
+
+1. Run `worklog capture --help` once and follow the input it describes.
+2. Write one JSON object about this commit. Include what changed, how, each
+   decision with its reason, the remaining next steps, and the public
+   technologies used. Only include facts the diff and this conversation
+   support. Write the text in <your journal language>.
+3. Leave out secrets, code, file paths, and people's names.
+4. Pipe the JSON to `worklog capture <repository root> <commit hash>`.
+5. If capture fails, keep the commit and tell me the error.
+```
+
+Replace `<your journal language>` with your journal's language, such as English.
+The Built-in summary uses your notes exactly as written and doesn't translate them,
+so the agent should write them in that language.
+
+### Record a note yourself
+
+Scripts, or you, can record a note the same way:
 
 ```sh
 echo '{"version":1,"outcome":"Added login retry with backoff",
@@ -284,8 +325,7 @@ echo '{"version":1,"outcome":"Added login retry with backoff",
 
 `worklog capture --help` lists every field. Recording the same note twice is
 harmless. A different note for a commit that already has one is refused, so
-nothing gets overwritten. The `gen-commit` skill does this automatically after each
-commit it makes.
+nothing gets overwritten.
 
 ## Troubleshooting
 

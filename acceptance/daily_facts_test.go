@@ -248,6 +248,9 @@ func TestInspectDefaultsToTheProfilesCurrentLocalDate(t *testing.T) {
 
 func createCommitAt(t *testing.T, environment acceptanceEnvironment, repository, email, authorDate, commitDate, subject, body string) string {
 	t.Helper()
+	for _, setting := range [][]string{{"user.name", "Daily Facts Fixture"}, {"user.email", email}} {
+		assertSucceeded(t, gitInRepository(t, environment, repository, append([]string{"config"}, setting...)...))
+	}
 	arguments := []string{"commit", "--quiet", "--allow-empty", "-m", subject}
 	if body != "" {
 		arguments = append(arguments, "-m", body)

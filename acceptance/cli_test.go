@@ -541,6 +541,11 @@ func newEnvironment(t *testing.T) acceptanceEnvironment {
 		"TMPDIR":              environment.temporaryDirectory,
 	}, "GIT_", "WORKLOG_", "XDG_")
 
+	// CI runners cannot guess a Git identity from the hostname, so local runs must not either.
+	if err := os.WriteFile(filepath.Join(root, "gitconfig"), []byte("[user]\n\tuseConfigOnly = true\n"), 0o600); err != nil {
+		t.Fatalf("write isolated Git config: %v", err)
+	}
+
 	git := exec.Command("git", "init", "--quiet", environment.repository)
 	git.Env = environment.environment
 	if output, err := git.CombinedOutput(); err != nil {

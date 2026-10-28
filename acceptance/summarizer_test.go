@@ -99,9 +99,13 @@ func TestDayFallsBackForEveryCommandSummarizerFailure(t *testing.T) {
 			if !test.missing {
 				command = writeFakeSummarizer(t, environment.root)
 			}
+			timeout := "10s"
+			if test.mode == "timeout" {
+				timeout = "500ms"
+			}
 			environment.environment = append(environment.environment,
 				"WORKLOG_FAKE_MODE="+test.mode,
-				"WORKLOG_SUMMARIZER_TIMEOUT=500ms",
+				"WORKLOG_SUMMARIZER_TIMEOUT="+timeout,
 			)
 			const email = "fallback@example.invalid"
 			assertSucceeded(t, environment.run(t,

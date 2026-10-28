@@ -41,7 +41,7 @@ M2 完成條件已達成：05、07、08、09、10、15、16、17、18、19 的 a
 
 ## M3 — 發布與正式遷移
 
-**Outcome:** 使用者可以安裝 versioned binary，選擇非 agent capture fallback，並在通過 parity gate 後安全取代既有 Bash 流程。
+**Outcome:** 使用者可以安裝 versioned binary，並在通過 parity gate 後安全取代既有 Bash 流程。
 
 **Tickets:** 13、14（11 已於 2026-10-27 取消）
 
